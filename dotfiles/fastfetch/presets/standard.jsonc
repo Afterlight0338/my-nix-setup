@@ -1,0 +1,144 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+
+  "logo": {
+    "type": "kitty",
+    "source": "/home/afterlight/.config/fastfetch/assets/roxy-logo.png",
+    "width": 20,
+    "padding": {
+      "top": 1,
+      "left": 1,
+      "right": 2
+    }
+  },
+
+  "display": {
+    "separator": " 󰁔 ",
+    "brightColor": true,
+
+    "color": {
+      "keys": "#8CB4FF",
+      "title": "#C6A9FF",
+      "output": "#DDE7FF",
+      "separator": "#7788FF"
+    },
+
+    "key": {
+      "width": 18,
+      "type": "string"
+    },
+
+    "bar": {
+      "width": 12,
+      "char": {
+        "elapsed": "━",
+        "total": "─"
+      },
+      "color": {
+        "elapsed": "#8CB4FF",
+        "total": "#3D466B",
+        "border": "#A996FF"
+      }
+    },
+
+    "percent": {
+      "type": 3,
+      "color": {
+        "green": "#80C8FF",
+        "yellow": "#C6A9FF",
+        "red": "#FF7AA8"
+      }
+    }
+  },
+
+  "modules": [
+    {
+      "type": "custom",
+      "format": "{#title}╭───── ✦ ROXY'S GRIMOIRE ✦ ──────╮{#}"
+    },
+    {
+      "type": "title",
+      "format": "{#title}         {user-name}@{host-name}{#}"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ SYSTEM ──────────────────────┤{#}"
+    },
+    {
+      "type": "os",
+      "key": "│   OS"
+    },
+    {
+      "type": "host",
+      "key": "│ 󰌢  Machine"
+    },
+    {
+      "type": "kernel",
+      "key": "│   Kernel"
+    },
+    {
+      "type": "uptime",
+      "key": "│ 󰅐  Uptime"
+    },
+    {
+      "type": "packages",
+      "key": "│ 󰏖  Packages"
+    },
+    {
+      "type": "command",
+      "key": "│ 󱄅  Generation",
+      "text": "basename \"$(readlink /nix/var/nix/profiles/system)\" | cut -d- -f2"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ HARDWARE ────────────────────┤{#}"
+    },
+    {
+      "type": "cpu",
+      "key": "│   Processor",
+      "temp": true,
+      "showPeCoreCount": true
+    },
+    {
+      "type": "gpu",
+      "key": "│ 󰢮  Graphics"
+    },
+    {
+      "type": "memory",
+      "key": "│   Memory"
+    },
+    {
+      "type": "swap",
+      "key": "│ 󰓡  Swap"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ DESKTOP ─────────────────────┤{#}"
+    },
+    {
+      "type": "wm",
+      "key": "│   Compositor"
+    },
+    {
+      "type": "display",
+      "key": "│ 󰍹  Displays",
+      "compactType": "original-with-refresh-rate"
+    },
+    {
+      "type": "terminal",
+      "key": "│   Terminal"
+    },
+    {
+      "type": "shell",
+      "key": "│   Shell"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#title}╰───────────────────────────────╯{#}"
+    }
+  ]
+}

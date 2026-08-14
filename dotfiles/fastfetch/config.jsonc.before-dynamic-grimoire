@@ -1,0 +1,197 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+
+  "logo": {
+    "type": "kitty",
+    "source": "/home/afterlight/Downloads/roxy-ff.png",
+    "width": 30,
+    "padding": {
+      "top": 1,
+      "left": 1,
+      "right": 3
+    }
+  },
+
+  "display": {
+    "separator": " 󰁔 ",
+    "brightColor": true,
+
+    "color": {
+      "keys": "#8CB4FF",
+      "title": "#C6A9FF",
+      "output": "#DDE7FF",
+      "separator": "#7788FF"
+    },
+
+    "key": {
+      "width": 18,
+      "type": "string"
+    },
+
+    "bar": {
+      "width": 14,
+      "char": {
+        "elapsed": "━",
+        "total": "─"
+      },
+      "color": {
+        "elapsed": "#8CB4FF",
+        "total": "#3D466B",
+        "border": "#A996FF"
+      }
+    },
+
+    "percent": {
+      "type": 3,
+      "color": {
+        "green": "#80C8FF",
+        "yellow": "#C6A9FF",
+        "red": "#FF7AA8"
+      }
+    }
+  },
+
+  "modules": [
+    {
+      "type": "custom",
+      "format": "{#title}╭───────────── ✦ ROXY'S GRIMOIRE ✦ ──────────────╮{#}"
+    },
+
+    {
+      "type": "title",
+      "format": "{#title}                 {user-name}@{host-name}{#}"
+    },
+
+    {
+      "type": "custom",
+      "key": "󰈸 Theme",
+      "format": "Roxy Migurdia • Arcane Blue"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ SYSTEM ───────────────────────────────────────┤{#}"
+    },
+
+    {
+      "type": "os",
+      "key": "  Operating System"
+    },
+    {
+      "type": "host",
+      "key": "󰌢  Machine"
+    },
+    {
+      "type": "kernel",
+      "key": "  Kernel"
+    },
+    {
+      "type": "uptime",
+      "key": "󰅐  Uptime"
+    },
+    {
+      "type": "packages",
+      "key": "󰏖  Packages"
+    },
+    {
+      "type": "command",
+      "key": "󱄅  Generation",
+      "text": "basename \"$(readlink /nix/var/nix/profiles/system)\" | cut -d- -f2"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ HARDWARE ─────────────────────────────────────┤{#}"
+    },
+
+    {
+      "type": "cpu",
+      "key": "  Processor",
+      "temp": true,
+      "showPeCoreCount": true
+    },
+    {
+      "type": "gpu",
+      "key": "󰢮  Graphics"
+    },
+    {
+      "type": "memory",
+      "key": "  Memory"
+    },
+    {
+      "type": "swap",
+      "key": "󰓡  Swap"
+    },
+    {
+      "type": "disk",
+      "key": "󰋊  NixOS Disk",
+      "folders": "/",
+      "format": "{size-used} / {size-total} ({size-percentage})"
+    },
+    {
+      "type": "battery",
+      "key": "󰁹  Battery"
+    },
+    {
+      "type": "poweradapter",
+      "key": "󱐋  Power"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ DESKTOP ──────────────────────────────────────┤{#}"
+    },
+
+    {
+      "type": "wm",
+      "key": "  Compositor"
+    },
+    {
+      "type": "display",
+      "key": "󰍹  Displays",
+      "compactType": "original-with-refresh-rate"
+    },
+    {
+      "type": "theme",
+      "key": "󰉼  GTK Theme"
+    },
+    {
+      "type": "icons",
+      "key": "󰀻  Icons"
+    },
+    {
+      "type": "terminal",
+      "key": "  Terminal"
+    },
+    {
+      "type": "terminalfont",
+      "key": "  Terminal Font"
+    },
+    {
+      "type": "shell",
+      "key": "  Shell"
+    },
+
+    {
+      "type": "custom",
+      "format": "{#keys}├─ STATUS ───────────────────────────────────────┤{#}"
+    },
+
+    {
+      "type": "localip",
+      "key": "󰩟  Local Network"
+    },
+    {
+      "type": "datetime",
+      "key": "󰃭  Date & Time",
+      "format": "{year}-{month-pretty}-{day-pretty}  {hour-pretty}:{minute-pretty}"
+    },
+    {
+      "type": "media",
+      "key": "󰎆  Now Playing"
+    },
+
+    "break",
+    "colors"
+  ]
+}
