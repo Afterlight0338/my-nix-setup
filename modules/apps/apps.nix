@@ -8,7 +8,15 @@ in
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Enable desktop applications, media tools, and virtual camera modules";
+      description = "Enable desktop applications, media tools, flatpak, and virtual camera modules";
+    };
+
+    flatpak = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable Flatpak sandboxed application distribution";
+      };
     };
 
     hamachi = {
@@ -45,6 +53,10 @@ in
           withVencord = true;
         })
       ];
+    })
+
+    (lib.mkIf (cfg.enable && cfg.flatpak.enable) {
+      services.flatpak.enable = true;
     })
 
     (lib.mkIf (cfg.enable && cfg.obsVirtualCam.enable) {
