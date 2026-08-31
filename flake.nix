@@ -14,6 +14,11 @@
       url = "github:0x7375646F/Linuwu-Sense";
       flake = false;
     };
+
+    caelestia-cli = {
+      url = "github:caelestia-dots/cli";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -23,6 +28,7 @@
       flake-utils,
       nix-cachyos-kernel,
       linuwu-sense-src,
+      caelestia-cli,
       ...
     }@inputs:
     let

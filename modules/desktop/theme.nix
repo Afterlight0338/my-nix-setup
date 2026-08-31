@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 
 let
   cfg = config.custom.desktop.theme;
@@ -13,13 +13,18 @@ let
     if builtins.hasAttr "nerd-fonts" pkgs
     then pkgs.nerd-fonts.jetbrains-mono
     else builtins.getAttr "nerd-fonts-jetbrains-mono" pkgs;
+
+  caelestiaPackage =
+    if (inputs ? caelestia-cli) && (builtins.hasAttr pkgs.stdenv.hostPlatform.system inputs.caelestia-cli.packages)
+    then [ inputs.caelestia-cli.packages.${pkgs.stdenv.hostPlatform.system}.with-shell ]
+    else [ ];
 in
 {
   options.custom.desktop.theme = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Enable Caelestia / Roxy Migurdia desktop theme integration and fonts";
+      description = "Enable Caelestia / Roxy Migurdia desktop theme integration, Caelestia Shell, and fonts";
     };
   };
 
@@ -54,6 +59,6 @@ in
       pkgs.trash-cli
       pkgs.hyprpicker
       pkgs.cliphist
-    ];
+    ] ++ caelestiaPackage;
   };
 }

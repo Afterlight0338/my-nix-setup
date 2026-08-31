@@ -1,0 +1,26 @@
+{
+  "theme": {
+    "enableTerm": true,
+    "enableHypr": true,
+
+    "enableBtop": true,
+    "enableGtk": true,
+
+    "enableQt": false,
+    "enableChromium": false,
+
+    "enableDiscord": false,
+    "enableSpicetify": false,
+    "enablePandora": false,
+    "enableFuzzel": false,
+    "enableNvtop": false,
+    "enableHtop": false,
+    "enableWarp": false,
+    "enableZed": false,
+    "enableCava": false,
+
+    "iconTheme": "Papirus-Dark",
+    "iconThemeLight": "Papirus-Light",
+    "iconThemeDark": "Papirus-Dark"
+  }
+}
