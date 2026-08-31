@@ -70,7 +70,7 @@ prompt_yn() {
 prompt_input() {
   local prompt="$1"
   local default="$2"
-  echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}[${default}]${RESET}: "
+  echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}[${default}]${RESET}: " >&2
   read -r response
   echo "${response:-$default}"
 }
