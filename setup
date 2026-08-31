@@ -20,7 +20,7 @@ print_banner() {
   echo "  ┌─────────────────────────────────────────────────────────────┐"
   echo "  │            ❄️  NixOS Guided Setup Wizard ❄️                  │"
   echo "  │    Automated Hardware Detection & Portable Configuration    │"
-  echo "  └─────────────────────────────────────────────────────────────┘"
+  └─────────────────────────────────────────────────────────────┘"
   echo -e "${RESET}"
 }
 
@@ -226,7 +226,7 @@ main() {
   ENABLE_GAMING=true
   ENABLE_OSU=true
   ENABLE_OSU_LAZER=true
-  ENABLE_OSU_WINE=true
+  ENABLE_OSU_WINE=false
   ENABLE_APPS=true
   ENABLE_OTD=true
   PRECONFIGURE_OTD=true
@@ -269,10 +269,10 @@ main() {
       ENABLE_HYPRLAND=$(prompt_yn "Enable Hyprland desktop with Roxy theme?" "y" && echo true || echo false)
       ENABLE_GAMING=$(prompt_yn "Install gaming tools (Steam, GameMode, ProtonPlus)?" "y" && echo true || echo false)
       
-      if prompt_yn "Enable osu! rhythm game suite?" "n"; then
+      if prompt_yn "Enable osu! rhythm game (Lazer binary release)?" "y"; then
         ENABLE_OSU=true
-        ENABLE_OSU_LAZER=$(prompt_yn "  • Install osu! Lazer (Wayland release)?" "y" && echo true || echo false)
-        ENABLE_OSU_WINE=$(prompt_yn "  • Install osu! stable with Wine (PipeWire audio patches)?" "y" && echo true || echo false)
+        ENABLE_OSU_LAZER=true
+        ENABLE_OSU_WINE=false
       else
         ENABLE_OSU=false
         ENABLE_OSU_LAZER=false
@@ -326,7 +326,7 @@ main() {
   echo -e "  ${BOLD}Graphics Drivers:${RESET}      NVIDIA: ${HAS_NVIDIA}, AMD: ${HAS_AMD_GPU}, Intel: ${HAS_INTEL_GPU}"
   echo -e "  ${BOLD}Desktop (Hyprland):${RESET}    ${ENABLE_HYPRLAND}"
   echo -e "  ${BOLD}Gaming (Steam/Tools):${RESET}  ${ENABLE_GAMING}"
-  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      Enabled: ${ENABLE_OSU} (Lazer: ${ENABLE_OSU_LAZER}, Wine: ${ENABLE_OSU_WINE})"
+  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      Enabled: ${ENABLE_OSU} (Lazer: ${ENABLE_OSU_LAZER})"
   echo -e "  ${BOLD}Drawing Tablet (OTD):${RESET}  Enabled: ${ENABLE_OTD} (Pre-configured: ${PRECONFIGURE_OTD})"
   echo -e "  ${BOLD}Laptop Power (UPower):${RESET} ${IS_LAPTOP}"
   echo -e "  ${BOLD}Kernel Selection:${RESET}      $($ENABLE_CACHYOS && echo "CachyOS BORE Scheduler" || echo "Standard Linux Latest")"

@@ -47,7 +47,7 @@ let
     exec "''${COMMAND[@]}" "$@"
   '';
 
-  # Exact osu-wine-nixos launcher using steam-run FHS environment, wine-osu, and pipewire pulse server
+  # osu-wine-nixos launcher using steam-run FHS environment (no system Wine package needed)
   osuWineNixosScript = pkgs.writeShellScriptBin "osu-wine-nixos" ''
     #!/usr/bin/env bash
     set -euo pipefail
@@ -143,7 +143,7 @@ in
       wine = lib.mkOption {
         type = lib.types.bool;
         default = false;
-        description = "Install osu! stable Wine tools, Steam-run FHS environment, and osu-wine-nixos";
+        description = "Enable osu-wine-nixos runner via Steam FHS environment (no system Wine installed)";
       };
     };
   };
@@ -184,8 +184,6 @@ in
     (lib.mkIf (cfg.enable && cfg.osu.enable && cfg.osu.wine) {
       environment.systemPackages = with pkgs; [
         steam-run
-        wineWowPackages.staging
-        winetricks
         zenity
         wget
         unzip

@@ -32,7 +32,6 @@
       osu = {
         enable = true;
         lazer = true;
-        wine = true;
       };
     };
 
