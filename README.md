@@ -20,7 +20,7 @@ Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or l
    *(Alternatively, run directly with Nix: `nix run github:Afterlight0338/my-nix-setup`)*
 
 3. **Press `[Enter]` to accept the defaults**:
-   * **Profile Selection**: Defaults to `[1] 🚀 Full Experience` (Hyprland + Roxy Theme + Steam Gaming + osu! Lazer + Desktop Apps + Tablet).
+   * **Profile Selection**: Defaults to `[1] 🚀 Full Experience` (Hyprland + Roxy Theme + Steam Gaming + osu! Lazer & osu-wine runner + Desktop Apps + Tablet).
    * **Username & Hostname**: Press `[Enter]` to keep your current username and computer name.
    * The wizard tests the configuration with Nix to ensure **zero errors**, installs the desktop theme, and switches to your new system!
 
@@ -78,7 +78,7 @@ my-nix-setup/
 │   ├── core/                  # Flakes, user management, locale, nix-ld, polkit, smart GC
 │   ├── desktop/               # Hyprland (UWSM/Ozone), Roxy palette, fonts, Dolphin file manager, Caelestia Shell
 │   ├── hardware/              # NVIDIA, AMD, Intel GPU, Bluetooth, PipeWire, OTD, WebHID, Laptop
-│   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, ProtonPlus, r2modman
+│   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, osu! Wine FHS runner, ProtonPlus, r2modman
 │   ├── apps/                  # Brave, Discord (OpenASAR+Vencord), OBS virtual cam, Flatpak, Hamachi
 │   └── system/                # Removable drive automount (udisks2/gvfs), drive helper script
 │
@@ -126,6 +126,7 @@ my-nix-setup/
 | `custom.gaming.enable` | `bool` | `true` | Steam (open firewall), GameMode, ProtonPlus, r2modman |
 | `custom.gaming.osu.enable` | `bool` | `false` | Master toggle for osu! rhythm game suite |
 | `custom.gaming.osu.lazer` | `bool` | `true` | Install osu! Lazer (with Discord audio routing & Wayland optimization) |
+| `custom.gaming.osu.wine` | `bool` | `false` | Enable osu-wine-nixos runner via Steam FHS (no system Wine installed) |
 | `custom.apps.enable` | `bool` | `true` | Brave, Discord (OpenASAR+Vencord), media utilities |
 | `custom.apps.flatpak.enable` | `bool` | `true` | Flatpak sandboxed application distribution |
 | `custom.apps.hamachi.enable` | `bool` | `false` | LogMeIn Hamachi VPN service & Haguichi GUI |

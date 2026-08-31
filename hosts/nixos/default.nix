@@ -32,6 +32,7 @@
       osu = {
         enable = true;
         lazer = true;
+        wine = true; # Dedicated osu! wine-osu runner via steam-run FHS (no system Wine)
       };
     };
 
