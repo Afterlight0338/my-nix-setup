@@ -54,31 +54,23 @@
               nixpkgs.config.allowUnfree = true;
             }
             ./modules
-            ./hosts/${hostname}
+            (./hosts + "/${hostname}")
           ] ++ modules;
         };
+
+      # Discover all host subdirectories in ./hosts dynamically
+      rawHosts = builtins.readDir ./hosts;
+      validHostNames = builtins.filter (
+        name:
+        rawHosts.${name} == "directory" && builtins.pathExists (./hosts + "/${name}/default.nix")
+      ) (builtins.attrNames rawHosts);
+
+      discoveredHosts = nixpkgs.lib.genAttrs validHostNames (name: mkHost { hostname = name; });
     in
     {
-      nixosConfigurations = {
-        # Host: Acer Nitro V 15 (Afterlight's daily driver)
-        nixos = mkHost {
-          hostname = "nixos";
-        };
-
-        # Alias for Nitro V 15
-        nitro-v15 = mkHost {
-          hostname = "nixos";
-        };
-
-        # Portable generic template host (for new machines & fresh installs)
-        generic = mkHost {
-          hostname = "generic";
-        };
-
-        # Default fallback
-        default = mkHost {
-          hostname = "generic";
-        };
+      nixosConfigurations = discoveredHosts // {
+        # Fallback default alias
+        default = discoveredHosts.generic or (mkHost { hostname = "generic"; });
       };
 
       # Exported packages for standalone usage
@@ -97,6 +89,28 @@
           damx-gui = pkgs.damx-gui;
           damx-suite = pkgs.damx-suite;
           whatsapp-custom = pkgs.whatsapp-custom;
+          setup = pkgs.writeShellScriptBin "setup" ''
+            exec ${./setup} "$@"
+          '';
+        }
+      );
+
+      apps = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          setup = {
+            type = "app";
+            program = "${self.packages.${system}.setup}/bin/setup";
+            meta.description = "Run interactive guided NixOS setup wizard";
+          };
+          default = {
+            type = "app";
+            program = "${self.packages.${system}.setup}/bin/setup";
+            meta.description = "Run interactive guided NixOS setup wizard";
+          };
         }
       );
 

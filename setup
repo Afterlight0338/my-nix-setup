@@ -1,0 +1,521 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# -----------------------------------------------------------------------------
+# Color & Style Helpers
+# -----------------------------------------------------------------------------
+BOLD='\033[1m'
+DIM='\033[2m'
+CYAN='\033[36m'
+BLUE='\033[34m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+RED='\033[31m'
+MAGENTA='\033[35m'
+RESET='\033[0m'
+
+print_banner() {
+  clear 2>/dev/null || true
+  echo -e "${CYAN}${BOLD}"
+  echo "  ┌─────────────────────────────────────────────────────────────┐"
+  echo "  │            ❄️  NixOS Guided Setup Wizard ❄️                  │"
+  echo "  │    Automated Hardware Detection & Portable Configuration    │"
+  echo "  └─────────────────────────────────────────────────────────────┘"
+  echo -e "${RESET}"
+}
+
+print_section() {
+  echo ""
+  echo -e "${BLUE}${BOLD}==>${RESET} ${BOLD}$1${RESET}"
+  echo -e "${DIM}---------------------------------------------------------------${RESET}"
+}
+
+print_info() {
+  echo -e "  ${CYAN}•${RESET} $1"
+}
+
+print_success() {
+  echo -e "  ${GREEN}✓${RESET} ${GREEN}$1${RESET}"
+}
+
+print_warn() {
+  echo -e "  ${YELLOW}!${RESET} ${YELLOW}$1${RESET}"
+}
+
+print_error() {
+  echo -e "  ${RED}✗${RESET} ${RED}$1${RESET}"
+}
+
+# -----------------------------------------------------------------------------
+# Prompt Utilities
+# -----------------------------------------------------------------------------
+prompt_yn() {
+  local prompt="$1"
+  local default="${2:-y}"
+  local yn_str="[Y/n]"
+  [[ "$default" =~ ^[nN]$ ]] && yn_str="[y/N]"
+
+  while true; do
+    echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}${yn_str}${RESET} "
+    read -r response
+    response="${response:-$default}"
+    case "$response" in
+      [yY]|[yY][eE][sS]) return 0 ;;
+      [nN]|[nN][oO]) return 1 ;;
+      *) echo -e "  ${RED}Please answer 'y' (yes) or 'n' (no).${RESET}" ;;
+    esac
+  done
+}
+
+prompt_input() {
+  local prompt="$1"
+  local default="$2"
+  echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}[${default}]${RESET}: "
+  read -r response
+  echo "${response:-$default}"
+}
+
+# -----------------------------------------------------------------------------
+# Hardware Detection
+# -----------------------------------------------------------------------------
+detect_hardware() {
+  print_section "Detecting System Hardware"
+
+  # CPU Detection
+  DETECTED_CPU_VENDOR="Generic"
+  DETECTED_CPU_MODEL="Unknown CPU"
+  if [ -f /proc/cpuinfo ]; then
+    DETECTED_CPU_MODEL=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^[ \t]*//')
+    if grep -qi "AuthenticAMD" /proc/cpuinfo || grep -qi "AMD" /proc/cpuinfo; then
+      DETECTED_CPU_VENDOR="AMD"
+    elif grep -qi "GenuineIntel" /proc/cpuinfo || grep -qi "Intel" /proc/cpuinfo; then
+      DETECTED_CPU_VENDOR="Intel"
+    fi
+  fi
+  DETECTED_CORES=$(nproc 2>/dev/null || echo "1")
+
+  # RAM Detection
+  DETECTED_RAM_GB="Unknown"
+  if [ -f /proc/meminfo ]; then
+    local kb
+    kb=$(grep "MemTotal" /proc/meminfo | awk '{print $2}')
+    DETECTED_RAM_GB="$(( (kb + 1048575) / 1048576 )) GB"
+  fi
+
+  # Chassis & Model Detection (Laptop vs Desktop)
+  DETECTED_VENDOR="Generic"
+  DETECTED_PRODUCT="System"
+  DETECTED_CHASSIS="Desktop"
+  IS_LAPTOP=false
+
+  if [ -f /sys/class/dmi/id/sys_vendor ]; then
+    DETECTED_VENDOR=$(cat /sys/class/dmi/id/sys_vendor | xargs)
+  fi
+  if [ -f /sys/class/dmi/id/product_name ]; then
+    DETECTED_PRODUCT=$(cat /sys/class/dmi/id/product_name | xargs)
+  fi
+
+  # Check chassis type code (8,9,10,11,14,30,31,32 indicate portable/laptop)
+  if [ -f /sys/class/dmi/id/chassis_type ]; then
+    local ctype
+    ctype=$(cat /sys/class/dmi/id/chassis_type 2>/dev/null | xargs || echo "3")
+    case "$ctype" in
+      8|9|10|11|14|30|31|32)
+        DETECTED_CHASSIS="Laptop"
+        IS_LAPTOP=true
+        ;;
+    esac
+  fi
+
+  # Secondary check: Battery presence
+  if ls /sys/class/power_supply/BAT* 1>/dev/null 2>&1; then
+    DETECTED_CHASSIS="Laptop"
+    IS_LAPTOP=true
+  fi
+
+  # GPU Detection via lspci
+  HAS_NVIDIA=false
+  HAS_AMD_GPU=false
+  HAS_INTEL_GPU=false
+  GPU_NAMES=()
+
+  if command -v lspci >/dev/null 2>&1; then
+    while IFS= read -r line; do
+      if echo "$line" | grep -qi "NVIDIA"; then
+        HAS_NVIDIA=true
+        GPU_NAMES+=("NVIDIA: $(echo "$line" | sed -E 's/^.+controller: //')")
+      fi
+      if echo "$line" | grep -qi "AMD" || echo "$line" | grep -qi "Advanced Micro Devices" || echo "$line" | grep -qi "Radeon"; then
+        HAS_AMD_GPU=true
+        GPU_NAMES+=("AMD: $(echo "$line" | sed -E 's/^.+controller: //')")
+      fi
+      if echo "$line" | grep -qi "Intel" && (echo "$line" | grep -qi "VGA" || echo "$line" | grep -qi "Display" || echo "$line" | grep -qi "3D"); then
+        HAS_INTEL_GPU=true
+        GPU_NAMES+=("Intel: $(echo "$line" | sed -E 's/^.+controller: //')")
+      fi
+    done < <(lspci | grep -iE 'vga|3d|display' || true)
+  fi
+
+  # Boot Mode
+  DETECTED_BOOT_MODE="Legacy BIOS"
+  IS_UEFI=false
+  if [ -d /sys/firmware/efi ]; then
+    DETECTED_BOOT_MODE="UEFI"
+    IS_UEFI=true
+  fi
+
+  # Bluetooth Detection
+  HAS_BLUETOOTH=false
+  if [ -d /sys/class/bluetooth ] || command -v rfkill >/dev/null 2>&1 && rfkill list bluetooth 2>/dev/null | grep -q "bluetooth"; then
+    HAS_BLUETOOTH=true
+  fi
+
+  # Root Filesystem Detection
+  ROOT_FSTYPE="ext4"
+  if command -v findmnt >/dev/null 2>&1; then
+    ROOT_FSTYPE=$(findmnt -n -o FSTYPE / 2>/dev/null || echo "ext4")
+  fi
+
+  # Print Summary
+  echo -e "  ${BOLD}Computer:${RESET}   ${DETECTED_VENDOR} - ${DETECTED_PRODUCT} (${DETECTED_CHASSIS})"
+  echo -e "  ${BOLD}Processor:${RESET}  ${DETECTED_CPU_MODEL} (${DETECTED_CORES} threads)"
+  echo -e "  ${BOLD}Memory:${RESET}     ${DETECTED_RAM_GB}"
+  echo -e "  ${BOLD}Boot Mode:${RESET}  ${DETECTED_BOOT_MODE}"
+  echo -e "  ${BOLD}Root FS:${RESET}    ${ROOT_FSTYPE}"
+  echo -e "  ${BOLD}Bluetooth:${RESET}  $($HAS_BLUETOOTH && echo "Detected" || echo "Not detected")"
+  echo -e "  ${BOLD}Graphics:${RESET}"
+  if [ ${#GPU_NAMES[@]} -eq 0 ]; then
+    echo -e "    ${DIM}Standard display controller${RESET}"
+  else
+    for gpu in "${GPU_NAMES[@]}"; do
+      echo -e "    • ${gpu}"
+    done
+  fi
+  echo ""
+}
+
+# -----------------------------------------------------------------------------
+# Main Setup Flow
+# -----------------------------------------------------------------------------
+main() {
+  print_banner
+  
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  cd "$SCRIPT_DIR"
+
+  echo "This wizard will safely set up and configure your NixOS system."
+  echo "No changes will be applied to your computer until you explicitly review"
+  echo "and confirm the final summary."
+  echo ""
+
+  detect_hardware
+
+  if ! prompt_yn "Is the detected hardware above accurate?" "y"; then
+    print_section "Manual Hardware Overrides"
+    if prompt_yn "Does this computer have an NVIDIA graphics card?" "$($HAS_NVIDIA && echo y || echo n)"; then
+      HAS_NVIDIA=true
+    else
+      HAS_NVIDIA=false
+    fi
+
+    if prompt_yn "Does this computer have an AMD graphics card/iGPU?" "$($HAS_AMD_GPU && echo y || echo n)"; then
+      HAS_AMD_GPU=true
+    else
+      HAS_AMD_GPU=false
+    fi
+
+    if prompt_yn "Does this computer have an Intel graphics card/iGPU?" "$($HAS_INTEL_GPU && echo y || echo n)"; then
+      HAS_INTEL_GPU=true
+    else
+      HAS_INTEL_GPU=false
+    fi
+
+    if prompt_yn "Is this computer a Laptop?" "$($IS_LAPTOP && echo y || echo n)"; then
+      IS_LAPTOP=true
+    else
+      IS_LAPTOP=false
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # User & Host Identity
+  # ---------------------------------------------------------------------------
+  print_section "User & Machine Identity"
+
+  CURRENT_USER="${SUDO_USER:-${USER:-nixos}}"
+  CURRENT_HOSTNAME=$(cat /etc/hostname 2>/dev/null || hostname 2>/dev/null || echo "my-nixos")
+
+  TARGET_USER=$(prompt_input "Enter primary username for this system" "$CURRENT_USER")
+  TARGET_DESC=$(prompt_input "Enter full name / display name" "${TARGET_USER^}")
+  TARGET_HOSTNAME=$(prompt_input "Enter a hostname for this machine" "$CURRENT_HOSTNAME")
+
+  # ---------------------------------------------------------------------------
+  # Feature Selection (Plain Language Questions)
+  # ---------------------------------------------------------------------------
+  print_section "Desktop & Application Preferences"
+
+  echo -e "${DIM}Choose which components you want to include on your system:${RESET}"
+  echo ""
+
+  ENABLE_HYPRLAND=true
+  if prompt_yn "Enable Hyprland desktop with Roxy Migurdia aesthetic theme?" "y"; then
+    ENABLE_HYPRLAND=true
+  else
+    ENABLE_HYPRLAND=false
+  fi
+
+  ENABLE_GAMING=true
+  if prompt_yn "Install gaming tools? (Steam, GameMode, ProtonPlus, mod managers)" "y"; then
+    ENABLE_GAMING=true
+  else
+    ENABLE_GAMING=false
+  fi
+
+  ENABLE_OSU=false
+  if prompt_yn "Install osu! (Lazer binary rhythm game)?" "n"; then
+    ENABLE_OSU=true
+  fi
+
+  ENABLE_APPS=true
+  if prompt_yn "Install standard desktop apps? (Brave, Discord with Vencord, media tools)" "y"; then
+    ENABLE_APPS=true
+  else
+    ENABLE_APPS=false
+  fi
+
+  ENABLE_OTD=false
+  if prompt_yn "Do you use a drawing tablet? (Configures OpenTabletDriver)" "n"; then
+    ENABLE_OTD=true
+  fi
+
+  ENABLE_WEBHID=false
+  if prompt_yn "Do you have custom WebHID/WebUSB keypads? (e.g. SayoDevice, Everglide)" "n"; then
+    ENABLE_WEBHID=true
+  fi
+
+  ENABLE_DAMX=false
+  ENABLE_LINUWU=false
+  if $IS_LAPTOP; then
+    if echo "$DETECTED_VENDOR $DETECTED_PRODUCT" | grep -qi "Acer"; then
+      if prompt_yn "Acer laptop detected: Enable Acer DAMX fan & laptop controls?" "n"; then
+        ENABLE_DAMX=true
+        ENABLE_LINUWU=true
+      fi
+    fi
+  fi
+
+  ENABLE_CACHYOS=false
+  if prompt_yn "Enable CachyOS BORE gaming kernel? (Optimized low-latency scheduler)" "n"; then
+    ENABLE_CACHYOS=true
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Summary & Host Generation
+  # ---------------------------------------------------------------------------
+  print_section "Configuration Plan Summary"
+
+  echo -e "  ${BOLD}Target Host Directory:${RESET} hosts/${TARGET_HOSTNAME}/"
+  echo -e "  ${BOLD}Primary User:${RESET}          ${TARGET_USER} (${TARGET_DESC})"
+  echo -e "  ${BOLD}Graphics Drivers:${RESET}      NVIDIA: ${HAS_NVIDIA}, AMD: ${HAS_AMD_GPU}, Intel: ${HAS_INTEL_GPU}"
+  echo -e "  ${BOLD}Desktop (Hyprland):${RESET}    ${ENABLE_HYPRLAND}"
+  echo -e "  ${BOLD}Gaming (Steam/Tools):${RESET}  ${ENABLE_GAMING}"
+  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      ${ENABLE_OSU}"
+  echo -e "  ${BOLD}Drawing Tablet (OTD):${RESET}  ${ENABLE_OTD}"
+  echo -e "  ${BOLD}WebHID / WebUSB Rules:${RESET} ${ENABLE_WEBHID}"
+  echo -e "  ${BOLD}Laptop Power (UPower):${RESET} ${IS_LAPTOP}"
+  echo -e "  ${BOLD}Kernel Selection:${RESET}      $($ENABLE_CACHYOS && echo "CachyOS BORE Scheduler" || echo "Standard Linux Latest")"
+  echo ""
+
+  if ! prompt_yn "Proceed to generate host configuration files?" "y"; then
+    echo -e "\n${YELLOW}Setup aborted. No changes made.${RESET}"
+    exit 0
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Generating Host Files
+  # ---------------------------------------------------------------------------
+  print_section "Generating Configuration"
+
+  HOST_DIR="hosts/${TARGET_HOSTNAME}"
+  mkdir -p "$HOST_DIR"
+
+  # 1. Hardware scan configuration
+  if [ -f /etc/nixos/hardware-configuration.nix ]; then
+    print_info "Importing existing /etc/nixos/hardware-configuration.nix..."
+    cp -f /etc/nixos/hardware-configuration.nix "$HOST_DIR/hardware-configuration.nix"
+  else
+    print_info "Running nixos-generate-config to detect host hardware..."
+    if command -v nixos-generate-config >/dev/null 2>&1; then
+      nixos-generate-config --show-hardware-config > "$HOST_DIR/hardware-configuration.nix"
+    else
+      print_warn "nixos-generate-config not found in PATH; copying generic template."
+      cp -f hosts/generic/hardware-configuration.nix "$HOST_DIR/hardware-configuration.nix"
+    fi
+  fi
+  print_success "Created $HOST_DIR/hardware-configuration.nix"
+
+  # 2. Host default.nix configuration
+  cat << HOST_CONFIG_EOF > "$HOST_DIR/default.nix"
+# Auto-generated host configuration for ${TARGET_HOSTNAME}
+# Created by Afterlight NixOS Setup Wizard on $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+{ pkgs, lib, ... }:
+
+{
+  imports = [
+    ./hardware-configuration.nix
+  ];
+
+  networking.hostName = "${TARGET_HOSTNAME}";
+
+  # User account configuration
+  custom.user = {
+    name = "${TARGET_USER}";
+    description = "${TARGET_DESC}";
+  };
+
+  # Hardware driver selections
+  custom.hardware = {
+    nvidia.enable = ${HAS_NVIDIA};
+    amdGpu.enable = ${HAS_AMD_GPU};
+    intelGpu.enable = ${HAS_INTEL_GPU};
+    bluetooth.enable = ${HAS_BLUETOOTH};
+    audio.enable = true;
+    laptop.enable = ${IS_LAPTOP};
+    laptop.damx = ${ENABLE_DAMX};
+    laptop.linuwuSense = ${ENABLE_LINUWU};
+    cachyosKernel.enable = ${ENABLE_CACHYOS};
+    opentabletdriver.enable = ${ENABLE_OTD};
+    webhid.enable = ${ENABLE_WEBHID};
+  };
+
+  # Desktop & Feature selections
+  custom.desktop = {
+    hyprland.enable = ${ENABLE_HYPRLAND};
+    theme.enable = ${ENABLE_HYPRLAND};
+    fileManager.enable = ${ENABLE_HYPRLAND};
+  };
+
+  custom.gaming = {
+    enable = ${ENABLE_GAMING};
+    osu.enable = ${ENABLE_OSU};
+  };
+
+  custom.apps = {
+    enable = ${ENABLE_APPS};
+    obsVirtualCam.enable = true;
+  };
+
+  # Standard bootloader configuration
+  boot.loader.systemd-boot.enable = lib.mkDefault true;
+  boot.loader.efi.canTouchEfiVariables = lib.mkDefault true;
+
+  system.stateVersion = "26.05";
+}
+HOST_CONFIG_EOF
+
+  print_success "Created $HOST_DIR/default.nix"
+
+  # Stage new host files in git so Nix flakes can discover them
+  if [ -d .git ]; then
+    git add -N "$HOST_DIR" 2>/dev/null || true
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Validation & Verification Phase
+  # ---------------------------------------------------------------------------
+  print_section "Validating Configuration with Nix"
+  print_info "Checking flake evaluation and dependencies..."
+
+  if command -v nix >/dev/null 2>&1; then
+    if nix eval ".#nixosConfigurations.${TARGET_HOSTNAME}.config.system.build.toplevel.drvPath" --extra-experimental-features "nix-command flakes" >/dev/null 2>&1; then
+      print_success "Evaluation successful! The configuration is valid."
+    else
+      print_error "Evaluation encountered an issue. Running diagnostics..."
+      nix eval ".#nixosConfigurations.${TARGET_HOSTNAME}.config.system.build.toplevel.drvPath" --extra-experimental-features "nix-command flakes" || true
+      echo -e "\n${RED}Aborting before system modification. Your running system has NOT been changed.${RESET}"
+      exit 1
+    fi
+  else
+    print_warn "Nix CLI not detected in current PATH; skipping dry-run evaluation."
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Dotfiles Copy Prompt
+  # ---------------------------------------------------------------------------
+  print_section "Dotfiles & Theming Setup"
+  if prompt_yn "Would you like to install the Hyprland / Roxy dotfiles to ~/.config?" "y"; then
+    TARGET_HOME="/home/${TARGET_USER}"
+    [ -d "$TARGET_HOME" ] || TARGET_HOME="$HOME"
+    
+    mkdir -p "$TARGET_HOME/.config"
+    for item in dotfiles/*; do
+      if [ -d "$item" ]; then
+        name=$(basename "$item")
+        if [ -d "$TARGET_HOME/.config/$name" ]; then
+          backup_dir="$TARGET_HOME/.config/${name}.backup-$(date +%Y%m%d%H%M%S)"
+          mv "$TARGET_HOME/.config/$name" "$backup_dir"
+          print_info "Existing ~/.config/$name backed up to $(basename "$backup_dir")"
+        fi
+        cp -ra "$item" "$TARGET_HOME/.config/"
+        print_success "Installed ~/.config/$name"
+      fi
+    done
+
+    # Set ownership if running under sudo
+    if [ -n "${SUDO_USER:-}" ]; then
+      chown -R "${SUDO_USER}:users" "$TARGET_HOME/.config" 2>/dev/null || true
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Final System Switch Prompt
+  # ---------------------------------------------------------------------------
+  print_section "Apply Configuration to Running System"
+
+  echo "The configuration has been built and validated."
+  echo "When you confirm, NixOS will build and switch to your new system."
+  echo ""
+
+  if prompt_yn "Switch to this new NixOS configuration now?" "y"; then
+    echo ""
+    print_info "Building and switching to '${TARGET_HOSTNAME}' profile..."
+    
+    # Back up /etc/nixos if needed
+    if [ -d /etc/nixos ] && [ ! -d /etc/nixos.wizard-backup ]; then
+      sudo cp -ra /etc/nixos /etc/nixos.wizard-backup 2>/dev/null || true
+      print_info "Saved backup of previous /etc/nixos to /etc/nixos.wizard-backup"
+    fi
+
+    if sudo nixos-rebuild switch --flake ".#${TARGET_HOSTNAME}"; then
+      echo ""
+      echo -e "${GREEN}${BOLD}"
+      echo "  ┌─────────────────────────────────────────────────────────────┐"
+      echo "  │             🎉 System Successfully Configured! 🎉           │"
+      echo "  └─────────────────────────────────────────────────────────────┘"
+      echo -e "${RESET}"
+      
+      echo -e "${BOLD}Rollback & Safety Information:${RESET}"
+      print_info "If you ever encounter an issue after a reboot, your previous system"
+      print_info "state is safely preserved as a bootable generation in your boot menu."
+      print_info "To instantly roll back from the terminal at any time:"
+      echo -e "     ${CYAN}sudo nixos-rebuild switch --rollback${RESET}"
+      echo ""
+      echo -e "${BOLD}Rebuilding After Future Changes:${RESET}"
+      print_info "Whenever you modify settings in ${BOLD}${HOST_DIR}${RESET} or update:"
+      echo -e "     ${CYAN}sudo nixos-rebuild switch --flake .#${TARGET_HOSTNAME}${RESET}"
+      echo ""
+    else
+      print_error "nixos-rebuild failed during switch. Your previous system generation remains active and untouched."
+      exit 1
+    fi
+  else
+    echo ""
+    print_info "Host configuration is ready at: ${BOLD}${HOST_DIR}${RESET}"
+    print_info "When you are ready to switch, simply run:"
+    echo -e "     ${CYAN}sudo nixos-rebuild switch --flake .#${TARGET_HOSTNAME}${RESET}"
+    echo ""
+  fi
+}
+
+main "$@"

@@ -9,7 +9,7 @@
 
   networking.hostName = "nixos";
 
-  # Host specific feature toggles
+  # Machine and user specific feature toggles
   custom = {
     user.name = "afterlight";
     user.description = "Afterlight";
@@ -20,6 +20,19 @@
       laptop.damx = true;
       laptop.linuwuSense = true;
       cachyosKernel.enable = true;
+      opentabletdriver.enable = true;
+      webhid.enable = true;
+    };
+
+    gaming = {
+      enable = true;
+      osu.enable = true;
+    };
+
+    apps = {
+      enable = true;
+      hamachi.enable = true;
+      obsVirtualCam.enable = true;
     };
 
     system.driveScript.enable = true;
@@ -31,7 +44,7 @@
     "amd_pstate=active"
   ];
 
-  # CPU Governor policy rule
+  # CPU Governor policy rule and GPU DRM device symlinks
   services.udev.extraRules = ''
     ACTION=="add", SUBSYSTEM=="cpu", ATTR{cpufreq/energy_performance_preference}="performance"
     KERNEL=="card*", KERNELS=="0000:01:00.0", SUBSYSTEM=="drm", SUBSYSTEMS=="pci", SYMLINK+="dri/nvidia-dgpu"

@@ -26,7 +26,7 @@ in
   options.custom.hardware.webhid = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Enable WebHID / WebUSB udev rules for custom keyboards & keypads";
     };
   };

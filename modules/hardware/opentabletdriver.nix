@@ -7,7 +7,7 @@ in
   options.custom.hardware.opentabletdriver = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Enable OpenTabletDriver daemon and blacklist conflicting kernel modules";
     };
   };

@@ -7,13 +7,13 @@ in
   options.custom.user = {
     name = lib.mkOption {
       type = lib.types.str;
-      default = "afterlight";
+      default = "nixos";
       description = "Primary user account name";
     };
 
     description = lib.mkOption {
       type = lib.types.str;
-      default = "Afterlight";
+      default = "NixOS User";
       description = "Primary user display name / description";
     };
 
