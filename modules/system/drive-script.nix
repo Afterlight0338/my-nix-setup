@@ -1,9 +1,8 @@
-# Add this to your configuration.nix (e.g. paste into environment.systemPackages list,
-# or import as a separate module). See usage notes at the bottom.
-
-{ pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 let
+  cfg = config.custom.system.driveScript;
+
   driveScript = pkgs.writeShellScriptBin "drive" ''
     #!/usr/bin/env bash
     set -euo pipefail
@@ -83,5 +82,15 @@ let
   '';
 in
 {
-  environment.systemPackages = [ driveScript ];
+  options.custom.system.driveScript = {
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install the custom 'drive' mount helper script";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    environment.systemPackages = [ driveScript ];
+  };
 }

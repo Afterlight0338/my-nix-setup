@@ -1,17 +1,14 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   programs.zsh = {
-    enable = true;
-
+    enable = lib.mkDefault true;
     ohMyZsh = {
-      enable = true;
+      enable = lib.mkDefault true;
       theme = "";
       plugins = [ "git" ];
     };
   };
-
-  users.users.afterlight.shell = pkgs.zsh;
 
   environment.systemPackages = with pkgs; [
     fastfetch

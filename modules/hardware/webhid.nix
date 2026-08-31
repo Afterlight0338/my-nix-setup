@@ -1,6 +1,8 @@
-{ pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 let
+  cfg = config.custom.hardware.webhid;
+
   webhidRules = pkgs.writeTextFile {
     name = "webhid-udev-rules";
     destination = "/etc/udev/rules.d/59-webhid.rules";
@@ -21,7 +23,17 @@ let
   };
 in
 {
-  services.udev.packages = [
-    webhidRules
-  ];
+  options.custom.hardware.webhid = {
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable WebHID / WebUSB udev rules for custom keyboards & keypads";
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    services.udev.packages = [
+      webhidRules
+    ];
+  };
 }

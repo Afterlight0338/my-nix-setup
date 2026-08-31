@@ -1,0 +1,26 @@
+# Nix build artifacts
+result
+result-*
+
+# Secrets, certificates, and private credentials
+*.key
+*.pem
+*.age
+*.sops
+secrets.yaml
+secrets.json
+.env
+.envrc.local
+
+# Temporary files and backups
+*.bak
+*.backup*
+*.tmp
+*~
+.#*
+
+# Editor and IDE metadata
+.direnv/
+.devenv/
+.vscode/
+.idea/

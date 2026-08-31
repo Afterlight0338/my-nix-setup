@@ -1,7 +1,7 @@
 { ... }:
 
 {
-  # in the running system because `nixos-rebuild build` failed before External SATA SSD
+  # External SATA SSD
   fileSystems."/mnt/useless" = {
     device = "/dev/disk/by-uuid/5E6AF7106AF6E3A5";
     fsType = "ntfs3";

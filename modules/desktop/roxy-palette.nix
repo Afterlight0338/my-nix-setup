@@ -1,4 +1,3 @@
-# /etc/nixos/roxy-palette.nix
 # Centralized Roxy Migurdia Palette - Single Source of Truth
 # Character reference: Roxy Migurdia (Mushoku Tensei: Jobless Reincarnation)
 
