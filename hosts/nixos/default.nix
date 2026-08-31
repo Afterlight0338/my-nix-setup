@@ -20,13 +20,20 @@
       laptop.damx = true;
       laptop.linuwuSense = true;
       cachyosKernel.enable = true;
-      opentabletdriver.enable = true;
+      opentabletdriver = {
+        enable = true;
+        preconfigure = true;
+      };
       webhid.enable = true;
     };
 
     gaming = {
       enable = true;
-      osu.enable = true;
+      osu = {
+        enable = true;
+        lazer = true;
+        wine = true;
+      };
     };
 
     apps = {

@@ -21,7 +21,11 @@ Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or l
 
 3. **Follow the on-screen prompts**:
    * The wizard automatically scans your CPU, graphics card (NVIDIA, AMD, or Intel), memory, and whether you are on a laptop or desktop.
-   * It asks a few simple questions (e.g., your preferred username, whether you play games on Steam, etc.).
+   * It asks a few simple questions:
+     * Your preferred username.
+     * Whether you want Steam and gaming tools.
+     * Whether you play **osu! Lazer** or **osu! stable (Wine)**.
+     * Whether you use a drawing tablet (**OpenTabletDriver**) and if you want it pre-configured.
    * It generates your computer's configuration and **tests it for errors before changing anything**.
    * When you confirm, it applies your desktop and theme.
 
@@ -79,7 +83,7 @@ my-nix-setup/
 │   ├── core/                  # Flakes, user management, locale, nix-ld, polkit, smart GC
 │   ├── desktop/               # Hyprland (UWSM/Ozone), Roxy palette, fonts, Dolphin file manager
 │   ├── hardware/              # NVIDIA, AMD, Intel GPU, Bluetooth, PipeWire, OTD, WebHID, Laptop
-│   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, ProtonPlus, r2modman
+│   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, osu! Wine, ProtonPlus, r2modman
 │   ├── apps/                  # Brave, Discord (OpenASAR+Vencord), OBS virtual cam, Hamachi
 │   └── system/                # Removable drive automount (udisks2/gvfs), drive helper script
 │
@@ -118,13 +122,16 @@ my-nix-setup/
 | `custom.hardware.audio.enable` | `bool` | `true` | PipeWire + WirePlumber + ALSA/PulseAudio emulation |
 | `custom.hardware.bluetooth.enable`| `bool` | `true` | Bluetooth service with power on boot |
 | `custom.hardware.opentabletdriver.enable` | `bool` | `false` | OpenTabletDriver daemon with conflicting driver blacklist |
+| `custom.hardware.opentabletdriver.preconfigure` | `bool` | `false` | Pre-configure tuned tablet area (67.67x39.39mm @ 180°) & filters |
 | `custom.hardware.webhid.enable` | `bool` | `false` | WebHID/WebUSB udev rules (SayoDevice & AE68 Pro) |
 | `custom.hardware.laptop.enable` | `bool` | `false` | UPower battery management service |
 | `custom.hardware.laptop.damx` | `bool` | `false` | Acer DAMX fan & laptop management daemon |
 | `custom.hardware.laptop.linuwuSense` | `bool` | `false` | Acer WMI kernel sensor module (`linuwu-sense`) |
 | `custom.hardware.cachyosKernel.enable` | `bool` | `false` | CachyOS kernel with BORE CPU scheduler & binary cache |
 | `custom.gaming.enable` | `bool` | `true` | Steam (open firewall), GameMode, ProtonPlus, r2modman |
-| `custom.gaming.osu.enable` | `bool` | `false` | osu! (Lazer binary release) |
+| `custom.gaming.osu.enable` | `bool` | `false` | Master toggle for osu! rhythm game suite |
+| `custom.gaming.osu.lazer` | `bool` | `true` | Install osu! Lazer (native Wayland binary release) |
+| `custom.gaming.osu.wine` | `bool` | `false` | Install osu! stable with Wine, PipeWire low-latency patches & Winello helper |
 | `custom.apps.enable` | `bool` | `true` | Brave, Discord (OpenASAR+Vencord), media utilities |
 | `custom.apps.hamachi.enable` | `bool` | `false` | LogMeIn Hamachi VPN service & Haguichi GUI |
 | `custom.system.smartGc.enable` | `bool` | `true` | Weekly smart garbage collection (preserves last 3 gens) |

@@ -10,6 +10,12 @@ in
       default = false;
       description = "Enable OpenTabletDriver daemon and blacklist conflicting kernel modules";
     };
+
+    preconfigure = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Pre-configure tuned tablet active area (67.67x39.39mm @ 180° rotation) and low-latency smoothing filters";
+    };
   };
 
   config = lib.mkIf cfg.enable {

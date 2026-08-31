@@ -271,9 +271,19 @@ main() {
     ENABLE_GAMING=false
   fi
 
+  # osu! rhythm game suite options
   ENABLE_OSU=false
-  if prompt_yn "Install osu! (Lazer binary rhythm game)?" "n"; then
+  ENABLE_OSU_LAZER=false
+  ENABLE_OSU_WINE=false
+
+  if prompt_yn "Enable osu! rhythm game options?" "n"; then
     ENABLE_OSU=true
+    if prompt_yn "  • Install osu! Lazer (modern native Wayland release)?" "y"; then
+      ENABLE_OSU_LAZER=true
+    fi
+    if prompt_yn "  • Install osu! stable with Wine (low-latency audio PipeWire patches & osu-winello helper)?" "y"; then
+      ENABLE_OSU_WINE=true
+    fi
   fi
 
   ENABLE_APPS=true
@@ -283,9 +293,14 @@ main() {
     ENABLE_APPS=false
   fi
 
+  # Drawing tablet & OTD options
   ENABLE_OTD=false
+  PRECONFIGURE_OTD=false
   if prompt_yn "Do you use a drawing tablet? (Configures OpenTabletDriver)" "n"; then
     ENABLE_OTD=true
+    if prompt_yn "  • Pre-configure tuned tablet area (67.67x39.39mm @ 180° rotation) and low-latency smoothing filters?" "y"; then
+      PRECONFIGURE_OTD=true
+    fi
   fi
 
   ENABLE_WEBHID=false
@@ -319,8 +334,8 @@ main() {
   echo -e "  ${BOLD}Graphics Drivers:${RESET}      NVIDIA: ${HAS_NVIDIA}, AMD: ${HAS_AMD_GPU}, Intel: ${HAS_INTEL_GPU}"
   echo -e "  ${BOLD}Desktop (Hyprland):${RESET}    ${ENABLE_HYPRLAND}"
   echo -e "  ${BOLD}Gaming (Steam/Tools):${RESET}  ${ENABLE_GAMING}"
-  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      ${ENABLE_OSU}"
-  echo -e "  ${BOLD}Drawing Tablet (OTD):${RESET}  ${ENABLE_OTD}"
+  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      Enabled: ${ENABLE_OSU} (Lazer: ${ENABLE_OSU_LAZER}, Wine/Stable: ${ENABLE_OSU_WINE})"
+  echo -e "  ${BOLD}Drawing Tablet (OTD):${RESET}  Enabled: ${ENABLE_OTD} (Pre-configured: ${PRECONFIGURE_OTD})"
   echo -e "  ${BOLD}WebHID / WebUSB Rules:${RESET} ${ENABLE_WEBHID}"
   echo -e "  ${BOLD}Laptop Power (UPower):${RESET} ${IS_LAPTOP}"
   echo -e "  ${BOLD}Kernel Selection:${RESET}      $($ENABLE_CACHYOS && echo "CachyOS BORE Scheduler" || echo "Standard Linux Latest")"
@@ -385,7 +400,10 @@ main() {
     laptop.damx = ${ENABLE_DAMX};
     laptop.linuwuSense = ${ENABLE_LINUWU};
     cachyosKernel.enable = ${ENABLE_CACHYOS};
-    opentabletdriver.enable = ${ENABLE_OTD};
+    opentabletdriver = {
+      enable = ${ENABLE_OTD};
+      preconfigure = ${PRECONFIGURE_OTD};
+    };
     webhid.enable = ${ENABLE_WEBHID};
   };
 
@@ -398,7 +416,11 @@ main() {
 
   custom.gaming = {
     enable = ${ENABLE_GAMING};
-    osu.enable = ${ENABLE_OSU};
+    osu = {
+      enable = ${ENABLE_OSU};
+      lazer = ${ENABLE_OSU_LAZER};
+      wine = ${ENABLE_OSU_WINE};
+    };
   };
 
   custom.apps = {
@@ -452,6 +474,12 @@ HOST_CONFIG_EOF
     for item in dotfiles/*; do
       if [ -d "$item" ]; then
         name=$(basename "$item")
+
+        # Skip OTD dotfile if user explicitly didn't choose pre-configuration
+        if [ "$name" = "OpenTabletDriver" ] && ! $PRECONFIGURE_OTD; then
+          continue
+        fi
+
         if [ -d "$TARGET_HOME/.config/$name" ]; then
           backup_dir="$TARGET_HOME/.config/${name}.backup-$(date +%Y%m%d%H%M%S)"
           mv "$TARGET_HOME/.config/$name" "$backup_dir"
