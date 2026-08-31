@@ -1,12 +1,12 @@
 # ❄️ Portable NixOS Flake & Roxy Hyprland Rice
 
-> A modular, beginner-friendly NixOS configuration featuring an **interactive guided setup wizard** and a themed **Hyprland** desktop rice inspired by **Roxy Migurdia** (*Mushoku Tensei*).
+> A modular, beginner-friendly NixOS configuration featuring an **interactive 1-click setup wizard** and a themed **Hyprland** desktop rice inspired by **Roxy Migurdia** (*Mushoku Tensei*).
 
 ---
 
 ## 🌟 For Beginners: "I Know Nothing About Nix"
 
-Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or learn Nix expressions to use this setup. The included wizard will detect your hardware and configure your computer automatically.
+Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or learn Nix expressions to use this setup. The included wizard detects your hardware and configures your computer in **under 15 seconds**.
 
 ### 🚀 3-Step Guided Installation
 
@@ -19,15 +19,10 @@ Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or l
    ```
    *(Alternatively, run directly with Nix: `nix run github:Afterlight0338/my-nix-setup`)*
 
-3. **Follow the on-screen prompts**:
-   * The wizard automatically scans your CPU, graphics card (NVIDIA, AMD, or Intel), memory, and whether you are on a laptop or desktop.
-   * It asks a few simple questions:
-     * Your preferred username.
-     * Whether you want Steam and gaming tools.
-     * Whether you play **osu! Lazer** or **osu! stable (Wine)**.
-     * Whether you use a drawing tablet (**OpenTabletDriver**) and if you want it pre-configured.
-   * It generates your computer's configuration and **tests it for errors before changing anything**.
-   * When you confirm, it applies your desktop and theme.
+3. **Press `[Enter]` to accept the defaults**:
+   * **Profile Selection**: Defaults to `[1] 🚀 Full Experience` (Hyprland + Roxy Theme + Steam Gaming + osu! + Desktop Apps + Tablet).
+   * **Username & Hostname**: Press `[Enter]` to keep your current username and computer name.
+   * The wizard tests the configuration with Nix to ensure **zero errors**, installs the desktop theme, and switches to your new system!
 
 ---
 
@@ -63,8 +58,8 @@ This repository uses a pure NixOS Flake structure with dynamic host discovery an
 ```text
 my-nix-setup/
 ├── flake.nix                  # Pure flake with dynamic host auto-discovery
-├── flake.lock                 # Pinned flake inputs
-├── setup                      # Interactive bash guided setup wizard
+├── flake.lock                 # Pinned flake inputs (includes Caelestia CLI/Shell)
+├── setup                      # Interactive 1-click preset setup wizard
 ├── .gitignore                 # Secrets & build artifact exclusions
 │
 ├── hosts/                     # Machine-specific configurations
@@ -81,17 +76,17 @@ my-nix-setup/
 │
 ├── modules/                   # Parameterized NixOS system modules
 │   ├── core/                  # Flakes, user management, locale, nix-ld, polkit, smart GC
-│   ├── desktop/               # Hyprland (UWSM/Ozone), Roxy palette, fonts, Dolphin file manager
+│   ├── desktop/               # Hyprland (UWSM/Ozone), Roxy palette, fonts, Dolphin file manager, Caelestia Shell
 │   ├── hardware/              # NVIDIA, AMD, Intel GPU, Bluetooth, PipeWire, OTD, WebHID, Laptop
 │   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, osu! Wine, ProtonPlus, r2modman
-│   ├── apps/                  # Brave, Discord (OpenASAR+Vencord), OBS virtual cam, Hamachi
+│   ├── apps/                  # Brave, Discord (OpenASAR+Vencord), OBS virtual cam, Flatpak, Hamachi
 │   └── system/                # Removable drive automount (udisks2/gvfs), drive helper script
 │
 ├── pkgs/                      # Custom Nix derivations & overlays
 │   ├── damx/                  # Linuwu-Sense kernel module, DAMX daemon & GUI
 │   └── whatsapp-custom/       # Wayland-native WhatsApp desktop wrapper
 │
-└── dotfiles/                  # Rice configurations (Hyprland, Kitty, Fastfetch, OTD, etc.)
+└── dotfiles/                  # Rice configurations (Hyprland, Caelestia, QtEngine, Kitty, Fastfetch, OTD, etc.)
 ```
 
 ---
@@ -114,7 +109,7 @@ my-nix-setup/
 | `custom.user.name` | `string` | `"nixos"` | Primary username created on the system |
 | `custom.user.description` | `string` | `"NixOS User"` | User display name |
 | `custom.desktop.hyprland.enable` | `bool` | `true` | Installs Hyprland with UWSM and Wayland utilities |
-| `custom.desktop.theme.enable` | `bool` | `true` | Injects Roxy palette, JetBrains Mono Nerd Font, Noto fonts |
+| `custom.desktop.theme.enable` | `bool` | `true` | Injects Roxy palette, Caelestia Shell/CLI, JetBrains Nerd Font |
 | `custom.desktop.fileManager.enable`| `bool` | `true` | Dolphin, Thunar, Tumbler thumbnails, KIO plugins |
 | `custom.hardware.nvidia.enable` | `bool` | `false` | NVIDIA proprietary drivers + VAAPI/VDPAU acceleration |
 | `custom.hardware.amdGpu.enable` | `bool` | `false` | AMD Mesa & Vulkan graphics drivers |
@@ -130,9 +125,10 @@ my-nix-setup/
 | `custom.hardware.cachyosKernel.enable` | `bool` | `false` | CachyOS kernel with BORE CPU scheduler & binary cache |
 | `custom.gaming.enable` | `bool` | `true` | Steam (open firewall), GameMode, ProtonPlus, r2modman |
 | `custom.gaming.osu.enable` | `bool` | `false` | Master toggle for osu! rhythm game suite |
-| `custom.gaming.osu.lazer` | `bool` | `true` | Install osu! Lazer (native Wayland binary release) |
-| `custom.gaming.osu.wine` | `bool` | `false` | Install osu! stable with Wine, PipeWire low-latency patches & Winello helper |
+| `custom.gaming.osu.lazer` | `bool` | `true` | Install osu! Lazer (with Discord audio routing & Wayland optimization) |
+| `custom.gaming.osu.wine` | `bool` | `false` | Install osu! stable with Wine, PipeWire patches & Winello helper |
 | `custom.apps.enable` | `bool` | `true` | Brave, Discord (OpenASAR+Vencord), media utilities |
+| `custom.apps.flatpak.enable` | `bool` | `true` | Flatpak sandboxed application distribution |
 | `custom.apps.hamachi.enable` | `bool` | `false` | LogMeIn Hamachi VPN service & Haguichi GUI |
 | `custom.system.smartGc.enable` | `bool` | `true` | Weekly smart garbage collection (preserves last 3 gens) |
 | `custom.system.automount.enable` | `bool` | `true` | Removable storage auto-discovery (udisks2/gvfs) |
@@ -143,7 +139,7 @@ my-nix-setup/
 
 The desktop environment is themed around **Roxy Migurdia** (*Mushoku Tensei: Jobless Reincarnation*), using a dark charcoal foundation paired with water-magic icy blues, soft cream text, and subdued gold/tan accents.
 
-The palette is centralized in [`modules/desktop/roxy-palette.nix`](file:///home/afterlight/my-nix-setup/modules/desktop/roxy-palette.nix) and synchronized across GTK (Adw-gtk3), Qt6 (Breeze + QtEngine), Fastfetch, Kitty, Btop, Cava, and Fuzzel.
+The palette is centralized in [`modules/desktop/roxy-palette.nix`](file:///home/afterlight/my-nix-setup/modules/desktop/roxy-palette.nix) and synchronized across Caelestia Shell, GTK (Adw-gtk3), Qt6 (Breeze + QtEngine), Fastfetch, Kitty, Btop, Cava, and Fuzzel.
 
 ---
 

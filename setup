@@ -56,13 +56,13 @@ prompt_yn() {
   [[ "$default" =~ ^[nN]$ ]] && yn_str="[y/N]"
 
   while true; do
-    echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}${yn_str}${RESET} "
+    echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}${yn_str}${RESET} " >&2
     read -r response
     response="${response:-$default}"
     case "$response" in
       [yY]|[yY][eE][sS]) return 0 ;;
       [nN]|[nN][oO]) return 1 ;;
-      *) echo -e "  ${RED}Please answer 'y' (yes) or 'n' (no).${RESET}" ;;
+      *) echo -e "  ${RED}Please answer 'y' (yes) or 'n' (no).${RESET}" >&2 ;;
     esac
   done
 }
@@ -70,6 +70,7 @@ prompt_yn() {
 prompt_input() {
   local prompt="$1"
   local default="$2"
+  local response
   echo -ne "  ${BOLD}${prompt}${RESET} ${DIM}[${default}]${RESET}: " >&2
   read -r response
   echo "${response:-$default}"
@@ -203,126 +204,117 @@ main() {
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$SCRIPT_DIR"
 
-  echo "This wizard will safely set up and configure your NixOS system."
-  echo "No changes will be applied to your computer until you explicitly review"
-  echo "and confirm the final summary."
-  echo ""
-
   detect_hardware
 
-  if ! prompt_yn "Is the detected hardware above accurate?" "y"; then
-    print_section "Manual Hardware Overrides"
-    if prompt_yn "Does this computer have an NVIDIA graphics card?" "$($HAS_NVIDIA && echo y || echo n)"; then
-      HAS_NVIDIA=true
-    else
-      HAS_NVIDIA=false
-    fi
+  # ---------------------------------------------------------------------------
+  # Fast Preset Selection (One-Key Setup vs Custom)
+  # ---------------------------------------------------------------------------
+  print_section "Installation Profile"
 
-    if prompt_yn "Does this computer have an AMD graphics card/iGPU?" "$($HAS_AMD_GPU && echo y || echo n)"; then
-      HAS_AMD_GPU=true
-    else
-      HAS_AMD_GPU=false
-    fi
+  echo -e "  ${BOLD}[1]${RESET} ${GREEN}${BOLD}🚀 Full Experience (Recommended)${RESET}"
+  echo -e "      ${DIM}Hyprland + Caelestia/Roxy Theme + Steam Gaming + osu! + Desktop Apps + OTD${RESET}"
+  echo -e "  ${BOLD}[2]${RESET} ${CYAN}${BOLD}⚡ Minimal Desktop${RESET}"
+  echo -e "      ${DIM}Hyprland + Caelestia/Roxy Theme + Essential Utilities only${RESET}"
+  echo -e "  ${BOLD}[3]${RESET} ${MAGENTA}${BOLD}🛠️  Custom / Advanced${RESET}"
+  echo -e "      ${DIM}Fine-tune every package, driver, and feature individually${RESET}"
+  echo ""
 
-    if prompt_yn "Does this computer have an Intel graphics card/iGPU?" "$($HAS_INTEL_GPU && echo y || echo n)"; then
-      HAS_INTEL_GPU=true
-    else
-      HAS_INTEL_GPU=false
-    fi
+  PROFILE_CHOICE=$(prompt_input "Select profile [1/2/3]" "1")
 
-    if prompt_yn "Is this computer a Laptop?" "$($IS_LAPTOP && echo y || echo n)"; then
-      IS_LAPTOP=true
-    else
-      IS_LAPTOP=false
-    fi
+  # Default initializations
+  ENABLE_HYPRLAND=true
+  ENABLE_GAMING=true
+  ENABLE_OSU=true
+  ENABLE_OSU_LAZER=true
+  ENABLE_OSU_WINE=true
+  ENABLE_APPS=true
+  ENABLE_OTD=true
+  PRECONFIGURE_OTD=true
+  ENABLE_WEBHID=false
+  ENABLE_DAMX=false
+  ENABLE_LINUWU=false
+  ENABLE_CACHYOS=false
+
+  # Automatic laptop / Acer detection for presets
+  if $IS_LAPTOP && echo "$DETECTED_VENDOR $DETECTED_PRODUCT" | grep -qi "Acer"; then
+    ENABLE_DAMX=true
+    ENABLE_LINUWU=true
   fi
 
+  case "$PROFILE_CHOICE" in
+    2)
+      # Minimal profile
+      ENABLE_GAMING=false
+      ENABLE_OSU=false
+      ENABLE_OSU_LAZER=false
+      ENABLE_OSU_WINE=false
+      ENABLE_OTD=false
+      PRECONFIGURE_OTD=false
+      ENABLE_DAMX=false
+      ENABLE_LINUWU=false
+      ;;
+    3)
+      # Custom / Advanced Mode
+      print_section "Manual Hardware Overrides"
+      if prompt_yn "Is the detected hardware above accurate?" "y"; then
+        :
+      else
+        HAS_NVIDIA=$(prompt_yn "Does this computer have an NVIDIA graphics card?" "$($HAS_NVIDIA && echo y || echo n)" && echo true || echo false)
+        HAS_AMD_GPU=$(prompt_yn "Does this computer have an AMD graphics card/iGPU?" "$($HAS_AMD_GPU && echo y || echo n)" && echo true || echo false)
+        HAS_INTEL_GPU=$(prompt_yn "Does this computer have an Intel graphics card/iGPU?" "$($HAS_INTEL_GPU && echo y || echo n)" && echo true || echo false)
+        IS_LAPTOP=$(prompt_yn "Is this computer a Laptop?" "$($IS_LAPTOP && echo y || echo n)" && echo true || echo false)
+      fi
+
+      print_section "Custom Feature Selection"
+      ENABLE_HYPRLAND=$(prompt_yn "Enable Hyprland desktop with Roxy theme?" "y" && echo true || echo false)
+      ENABLE_GAMING=$(prompt_yn "Install gaming tools (Steam, GameMode, ProtonPlus)?" "y" && echo true || echo false)
+      
+      if prompt_yn "Enable osu! rhythm game suite?" "n"; then
+        ENABLE_OSU=true
+        ENABLE_OSU_LAZER=$(prompt_yn "  • Install osu! Lazer (Wayland release)?" "y" && echo true || echo false)
+        ENABLE_OSU_WINE=$(prompt_yn "  • Install osu! stable with Wine (PipeWire audio patches)?" "y" && echo true || echo false)
+      else
+        ENABLE_OSU=false
+        ENABLE_OSU_LAZER=false
+        ENABLE_OSU_WINE=false
+      fi
+
+      ENABLE_APPS=$(prompt_yn "Install desktop apps (Brave, Discord, media tools)?" "y" && echo true || echo false)
+
+      if prompt_yn "Do you use a drawing tablet (OpenTabletDriver)?" "n"; then
+        ENABLE_OTD=true
+        PRECONFIGURE_OTD=$(prompt_yn "  • Pre-configure tuned tablet area (67.67x39.39mm @ 180°)? " "y" && echo true || echo false)
+      else
+        ENABLE_OTD=false
+        PRECONFIGURE_OTD=false
+      fi
+
+      ENABLE_WEBHID=$(prompt_yn "Do you have custom WebHID keypads (SayoDevice, etc.)?" "n" && echo true || echo false)
+
+      if $IS_LAPTOP && echo "$DETECTED_VENDOR $DETECTED_PRODUCT" | grep -qi "Acer"; then
+        ENABLE_DAMX=$(prompt_yn "Enable Acer DAMX fan & laptop controls?" "n" && echo true || echo false)
+        ENABLE_LINUWU=$ENABLE_DAMX
+      fi
+
+      ENABLE_CACHYOS=$(prompt_yn "Enable CachyOS BORE gaming kernel scheduler?" "n" && echo true || echo false)
+      ;;
+    *)
+      # Full profile (Profile 1)
+      print_info "Selected Full Experience profile: All desktop, gaming, and app features enabled."
+      ;;
+  esac
+
   # ---------------------------------------------------------------------------
-  # User & Host Identity
+  # User & Host Identity (Streamlined to 2 quick inputs)
   # ---------------------------------------------------------------------------
   print_section "User & Machine Identity"
 
   CURRENT_USER="${SUDO_USER:-${USER:-nixos}}"
-  CURRENT_HOSTNAME=$(cat /etc/hostname 2>/dev/null || hostname 2>/dev/null || echo "my-nixos")
+  CURRENT_HOSTNAME=$(cat /etc/hostname 2>/dev/null || hostname 2>/dev/null || echo "nixos")
 
-  TARGET_USER=$(prompt_input "Enter primary username for this system" "$CURRENT_USER")
-  TARGET_DESC=$(prompt_input "Enter full name / display name" "${TARGET_USER^}")
-  TARGET_HOSTNAME=$(prompt_input "Enter a hostname for this machine" "$CURRENT_HOSTNAME")
-
-  # ---------------------------------------------------------------------------
-  # Feature Selection (Plain Language Questions)
-  # ---------------------------------------------------------------------------
-  print_section "Desktop & Application Preferences"
-
-  echo -e "${DIM}Choose which components you want to include on your system:${RESET}"
-  echo ""
-
-  ENABLE_HYPRLAND=true
-  if prompt_yn "Enable Hyprland desktop with Roxy Migurdia aesthetic theme?" "y"; then
-    ENABLE_HYPRLAND=true
-  else
-    ENABLE_HYPRLAND=false
-  fi
-
-  ENABLE_GAMING=true
-  if prompt_yn "Install gaming tools? (Steam, GameMode, ProtonPlus, mod managers)" "y"; then
-    ENABLE_GAMING=true
-  else
-    ENABLE_GAMING=false
-  fi
-
-  # osu! rhythm game suite options
-  ENABLE_OSU=false
-  ENABLE_OSU_LAZER=false
-  ENABLE_OSU_WINE=false
-
-  if prompt_yn "Enable osu! rhythm game options?" "n"; then
-    ENABLE_OSU=true
-    if prompt_yn "  • Install osu! Lazer (modern native Wayland release)?" "y"; then
-      ENABLE_OSU_LAZER=true
-    fi
-    if prompt_yn "  • Install osu! stable with Wine (low-latency audio PipeWire patches & osu-winello helper)?" "y"; then
-      ENABLE_OSU_WINE=true
-    fi
-  fi
-
-  ENABLE_APPS=true
-  if prompt_yn "Install standard desktop apps? (Brave, Discord with Vencord, media tools)" "y"; then
-    ENABLE_APPS=true
-  else
-    ENABLE_APPS=false
-  fi
-
-  # Drawing tablet & OTD options
-  ENABLE_OTD=false
-  PRECONFIGURE_OTD=false
-  if prompt_yn "Do you use a drawing tablet? (Configures OpenTabletDriver)" "n"; then
-    ENABLE_OTD=true
-    if prompt_yn "  • Pre-configure tuned tablet area (67.67x39.39mm @ 180° rotation) and low-latency smoothing filters?" "y"; then
-      PRECONFIGURE_OTD=true
-    fi
-  fi
-
-  ENABLE_WEBHID=false
-  if prompt_yn "Do you have custom WebHID/WebUSB keypads? (e.g. SayoDevice, Everglide)" "n"; then
-    ENABLE_WEBHID=true
-  fi
-
-  ENABLE_DAMX=false
-  ENABLE_LINUWU=false
-  if $IS_LAPTOP; then
-    if echo "$DETECTED_VENDOR $DETECTED_PRODUCT" | grep -qi "Acer"; then
-      if prompt_yn "Acer laptop detected: Enable Acer DAMX fan & laptop controls?" "n"; then
-        ENABLE_DAMX=true
-        ENABLE_LINUWU=true
-      fi
-    fi
-  fi
-
-  ENABLE_CACHYOS=false
-  if prompt_yn "Enable CachyOS BORE gaming kernel? (Optimized low-latency scheduler)" "n"; then
-    ENABLE_CACHYOS=true
-  fi
+  TARGET_USER=$(prompt_input "Primary username" "$CURRENT_USER")
+  TARGET_HOSTNAME=$(prompt_input "Machine hostname" "$CURRENT_HOSTNAME")
+  TARGET_DESC="${TARGET_USER^}"
 
   # ---------------------------------------------------------------------------
   # Summary & Host Generation
@@ -330,13 +322,12 @@ main() {
   print_section "Configuration Plan Summary"
 
   echo -e "  ${BOLD}Target Host Directory:${RESET} hosts/${TARGET_HOSTNAME}/"
-  echo -e "  ${BOLD}Primary User:${RESET}          ${TARGET_USER} (${TARGET_DESC})"
+  echo -e "  ${BOLD}Primary User:${RESET}          ${TARGET_USER}"
   echo -e "  ${BOLD}Graphics Drivers:${RESET}      NVIDIA: ${HAS_NVIDIA}, AMD: ${HAS_AMD_GPU}, Intel: ${HAS_INTEL_GPU}"
   echo -e "  ${BOLD}Desktop (Hyprland):${RESET}    ${ENABLE_HYPRLAND}"
   echo -e "  ${BOLD}Gaming (Steam/Tools):${RESET}  ${ENABLE_GAMING}"
-  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      Enabled: ${ENABLE_OSU} (Lazer: ${ENABLE_OSU_LAZER}, Wine/Stable: ${ENABLE_OSU_WINE})"
+  echo -e "  ${BOLD}osu! Rhythm Game:${RESET}      Enabled: ${ENABLE_OSU} (Lazer: ${ENABLE_OSU_LAZER}, Wine: ${ENABLE_OSU_WINE})"
   echo -e "  ${BOLD}Drawing Tablet (OTD):${RESET}  Enabled: ${ENABLE_OTD} (Pre-configured: ${PRECONFIGURE_OTD})"
-  echo -e "  ${BOLD}WebHID / WebUSB Rules:${RESET} ${ENABLE_WEBHID}"
   echo -e "  ${BOLD}Laptop Power (UPower):${RESET} ${IS_LAPTOP}"
   echo -e "  ${BOLD}Kernel Selection:${RESET}      $($ENABLE_CACHYOS && echo "CachyOS BORE Scheduler" || echo "Standard Linux Latest")"
   echo ""
