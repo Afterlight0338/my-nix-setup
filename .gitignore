@@ -24,3 +24,8 @@ secrets.json
 .devenv/
 .vscode/
 .idea/
+
+# Runtime logs
+Logs/
+*.log
+*.log.json

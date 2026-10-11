@@ -1,7 +1,7 @@
 # Primary render GPU, picked at login (Hyprland can't switch it live):
 # a display on the NVIDIA card (external monitor on its HDMI) -> NVIDIA first, renders natively there;
 # otherwise AMD first, so the RTX 3050 can sleep (PRIME fine-grained PM, see /etc/nixos/desktop-compat.nix).
-# Old fixed order: env-hyprland.bak-nvidia-first
+# The old fixed NVIDIA-first order is gpu_mode=nvidia (Settings > Desktop GPU).
 # gpu_mode: auto (above) | amd (always AMD first) | nvidia (always NVIDIA first). Rice Settings edits it.
 gpu_mode=auto
 dgpu="$(basename "$(readlink -f /dev/dri/nvidia-dgpu)")"

@@ -1,165 +1,73 @@
-# ❄️ Portable NixOS Flake & Roxy Hyprland Rice
+# my-nix-setup
 
-> A modular, beginner-friendly NixOS configuration featuring an **interactive 1-click setup wizard** and a themed **Hyprland** desktop rice inspired by **Roxy Migurdia** (*Mushoku Tensei*).
+My NixOS config, and the Hyprland rice that goes with it: Caelestia shell, themed after Roxy Migurdia from *Mushoku Tensei*. Dark charcoal, Roxy blue, a little gold.
 
----
+It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't tied to it, and `./setup` will write a config for your own machine.
 
-## 🌟 For Beginners: "I Know Nothing About Nix"
+## What you get
 
-Welcome! If you are new to Linux or NixOS, you do **not** need to edit code or learn Nix expressions to use this setup. The included wizard detects your hardware and configures your computer in **under 15 seconds**.
+- **Hyprland** through UWSM, with the **Caelestia** shell (bar, launcher, notifications, lock screen)
+- **Roxy theme** everywhere: GTK, Qt (Darkly with glass backgrounds), Papirus icons, kitty, fastfetch, btop, cava, Brave's toolbar, a boot splash
+- **A settings page** for the rice (`Super + Shift + /`), so you don't have to edit config files for the common stuff
+- **Gaming**: Steam, GameMode, osu! (lazer, plus stable through wine-osu)
+- **Fixes for the usual NixOS annoyances**: downloaded binaries and AppImages just run, `, <command>` runs anything from nixpkgs once, `/tmp` gets cleaned, old generations get pruned weekly
+- **Laptop bits**: NVIDIA PRIME (the dGPU sleeps when idle), the CachyOS kernel from a binary cache, Acer fan control (DAMX)
 
-### 🚀 3-Step Guided Installation
+## Installing
 
-1. **Install NixOS** on your computer using the standard NixOS installer.
-2. **Open Terminal** and run:
-   ```bash
-   git clone https://github.com/Afterlight0338/my-nix-setup.git ~/nixos-config
-   cd ~/nixos-config
-   ./setup
-   ```
-   *(Alternatively, run directly with Nix: `nix run github:Afterlight0338/my-nix-setup`)*
+On a working NixOS install:
 
-3. **Press `[Enter]` to accept the defaults**:
-   * **Profile Selection**: Defaults to `[1] 🚀 Full Experience` (Hyprland + Roxy Theme + Steam Gaming + osu! Lazer & osu-wine runner + Desktop Apps + Tablet).
-   * **Username & Hostname**: Press `[Enter]` to keep your current username and computer name.
-   * The wizard tests the configuration with Nix to ensure **zero errors**, installs the desktop theme, and switches to your new system!
-
----
-
-### 🛡️ Safety & Undo (How Rollback Works)
-
-One of the best features of NixOS is that **it never breaks your system permanently**:
-* **Every change creates a "Generation"**: Whenever you update or configure your system, your previous working state is saved.
-* **Boot Menu Rollback**: If your computer ever fails to boot or a graphics driver causes an issue, simply restart your computer and select any previous generation from the boot menu.
-* **Instant Command Rollback**: To undo the last change from the terminal:
-  ```bash
-  sudo nixos-rebuild switch --rollback
-  ```
-
----
-
-### 🔄 How to Update Your System Later
-
-Whenever you want to update your packages or apply changes:
 ```bash
-cd ~/nixos-config
-sudo nixos-rebuild switch --flake .
+git clone https://github.com/Afterlight0338/my-nix-setup ~/my-nix-setup
+cd ~/my-nix-setup
+./setup
 ```
 
----
----
+It looks at your hardware, asks what you want (everything, minimal, or one question per part), writes `hosts/<your hostname>/`, checks that it builds, offers to copy the dotfiles into your home folder, and finally offers to switch. Nothing changes until those last two questions, and anything it replaces is kept as `*.backup-<time>`.
 
-## 🛠️ For Power Users: "I Know Nix"
+If something goes wrong after switching, `sudo nixos-rebuild switch --rollback` puts the previous system back, and older ones are in the boot menu.
 
-### Architecture & Flake Overview
+## Day to day
 
-This repository uses a pure NixOS Flake structure with dynamic host discovery and parameterized modules under the `custom.*` option namespace.
-
-```text
-my-nix-setup/
-├── flake.nix                  # Pure flake with dynamic host auto-discovery
-├── flake.lock                 # Pinned flake inputs (includes Caelestia CLI/Shell)
-├── setup                      # Interactive 1-click preset setup wizard
-├── .gitignore                 # Secrets & build artifact exclusions
-│
-├── hosts/                     # Machine-specific configurations
-│   ├── nixos/                 # Primary host: Acer Nitro V 15 (Afterlight)
-│   │   ├── default.nix        # Enabled feature toggles & host parameters
-│   │   ├── hardware-configuration.nix # Disks, UUIDs, btrfs subvolumes
-│   │   ├── boot-bridge.nix    # Dual-boot GRUB + systemd-boot integration
-│   │   ├── generate-grub-direct.sh
-│   │   └── drives.nix         # Host-specific partition mount points
-│   │
-│   └── generic/               # Fallback template importing /etc/nixos
-│       ├── default.nix
-│       └── hardware-configuration.nix
-│
-├── modules/                   # Parameterized NixOS system modules
-│   ├── core/                  # Flakes, user management, locale, nix-ld, polkit, smart GC
-│   ├── desktop/               # Hyprland (UWSM/Ozone), Roxy palette, fonts, Dolphin file manager, Caelestia Shell
-│   ├── hardware/              # NVIDIA, AMD, Intel GPU, Bluetooth, PipeWire, OTD, WebHID, Laptop
-│   ├── gaming/                # Steam, GameMode daemon, osu! Lazer, osu! Wine FHS runner, ProtonPlus, r2modman
-│   ├── apps/                  # Brave, Discord (OpenASAR+Vencord), OBS virtual cam, Flatpak, Hamachi
-│   └── system/                # Removable drive automount (udisks2/gvfs), drive helper script
-│
-├── pkgs/                      # Custom Nix derivations & overlays
-│   ├── damx/                  # Linuwu-Sense kernel module, DAMX daemon & GUI
-│   └── whatsapp-custom/       # Wayland-native WhatsApp desktop wrapper
-│
-├── dotfiles/                  # Rice configurations (Hyprland, Caelestia, QtEngine, Kitty, Fastfetch, OTD, etc.)
-└── home/                      # Files outside ~/.config: Settings backend + scripts, ~/.zshrc, Darkly glass, lock picture
+```bash
+sudo nixos-rebuild switch --flake ~/my-nix-setup#<hostname>   # apply changes
+nix flake update                                               # newer packages (then rebuild)
 ```
 
----
+Your machine's choices live in `hosts/<hostname>/default.nix`. The options are short and named after what they do (`custom.desktop.splash.enable`, `custom.hardware.nvidia.enable`, ...); `modules/*.nix` lists them all.
 
-### Dynamic Host Discovery
+## Settings and hotkeys
 
-`flake.nix` dynamically inspects `./hosts/` and creates a `nixosConfigurations.<hostname>` entry for every directory containing a `default.nix`. Creating a new host requires zero edits to `flake.nix`:
-
-1. Run `nixos-generate-config --show-hardware-config > hosts/<hostname>/hardware-configuration.nix`
-2. Create `hosts/<hostname>/default.nix`
-3. Stage with `git add hosts/<hostname>`
-4. Rebuild: `sudo nixos-rebuild switch --flake .#<hostname>`
-
----
-
-### Module Option Reference (`custom.*`)
-
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `custom.user.name` | `string` | `"nixos"` | Primary username created on the system |
-| `custom.user.description` | `string` | `"NixOS User"` | User display name |
-| `custom.desktop.hyprland.enable` | `bool` | `true` | Installs Hyprland with UWSM and Wayland utilities |
-| `custom.desktop.theme.enable` | `bool` | `true` | Injects Roxy palette, Caelestia Shell/CLI, JetBrains Nerd Font |
-| `custom.desktop.fileManager.enable`| `bool` | `true` | Dolphin, Thunar, Tumbler thumbnails, KIO plugins |
-| `custom.hardware.nvidia.enable` | `bool` | `false` | NVIDIA proprietary drivers + VAAPI/VDPAU acceleration |
-| `custom.hardware.amdGpu.enable` | `bool` | `false` | AMD Mesa & Vulkan graphics drivers |
-| `custom.hardware.intelGpu.enable` | `bool` | `false` | Intel media driver & VAAPI acceleration |
-| `custom.hardware.audio.enable` | `bool` | `true` | PipeWire + WirePlumber + ALSA/PulseAudio emulation |
-| `custom.hardware.bluetooth.enable`| `bool` | `true` | Bluetooth service with power on boot |
-| `custom.hardware.opentabletdriver.enable` | `bool` | `false` | OpenTabletDriver daemon with conflicting driver blacklist |
-| `custom.hardware.opentabletdriver.preconfigure` | `bool` | `false` | Pre-configure tuned tablet area (67.67x39.39mm @ 180°) & filters |
-| `custom.hardware.webhid.enable` | `bool` | `false` | WebHID/WebUSB udev rules (SayoDevice & AE68 Pro) |
-| `custom.hardware.laptop.enable` | `bool` | `false` | UPower battery management service |
-| `custom.hardware.laptop.damx` | `bool` | `false` | Acer DAMX fan & laptop management daemon |
-| `custom.hardware.laptop.linuwuSense` | `bool` | `false` | Acer WMI kernel sensor module (`linuwu-sense`) |
-| `custom.hardware.cachyosKernel.enable` | `bool` | `false` | CachyOS kernel with BORE CPU scheduler & binary cache |
-| `custom.gaming.enable` | `bool` | `true` | Steam (open firewall), GameMode, ProtonPlus, r2modman |
-| `custom.gaming.osu.enable` | `bool` | `false` | Master toggle for osu! rhythm game suite |
-| `custom.gaming.osu.lazer` | `bool` | `true` | Install osu! Lazer (with Discord audio routing & Wayland optimization) |
-| `custom.gaming.osu.wine` | `bool` | `false` | Enable osu-wine-nixos runner via Steam FHS (no system Wine installed) |
-| `custom.apps.enable` | `bool` | `true` | Brave, Discord (OpenASAR+Vencord), media utilities |
-| `custom.apps.flatpak.enable` | `bool` | `true` | Flatpak sandboxed application distribution |
-| `custom.apps.hamachi.enable` | `bool` | `false` | LogMeIn Hamachi VPN service & Haguichi GUI |
-| `custom.system.smartGc.enable` | `bool` | `true` | Weekly smart garbage collection (preserves last 3 gens) |
-| `custom.system.automount.enable` | `bool` | `true` | Removable storage auto-discovery (udisks2/gvfs) |
-
----
-
-## 🎨 Theme & Rice Details
-
-The desktop environment is themed around **Roxy Migurdia** (*Mushoku Tensei: Jobless Reincarnation*), using a dark charcoal foundation paired with water-magic icy blues, soft cream text, and subdued gold/tan accents.
-
-The palette is centralized in [`modules/desktop/roxy-palette.nix`](modules/desktop/roxy-palette.nix) and synchronized across Caelestia Shell, GTK (Adw-gtk3), Qt6 (Darkly glass + QtEngine), Fastfetch, Kitty, Btop, Cava, and Fuzzel.
-
-### ⚙️ Rice Settings & Hotkeys
-
-Almost everything in the rice can be changed from one page: press **Super+Shift+/**, or the ⚙ Settings button in the **Super+/** keybind cheat sheet. It has Simple and Advanced tabs, and changes apply live where they can (drag a slider and the card turns see-through so you can watch the desktop change).
+Most of the rice can be changed from one page: `Super + Shift + /`, or the Settings button in the `Super + /` keybind cheat sheet. Simple and Advanced tabs, and changes apply live where they can. While you drag a slider the page turns see-through so you can watch the desktop change.
 
 | Hotkey | What it does |
 | :--- | :--- |
 | `Super + /` | Keybind cheat sheet |
-| `Super + Shift + /` | Rice Settings |
+| `Super + Shift + /` | Settings |
 | `Super + Shift + N` | Do Not Disturb |
-| `Super + B` | Show the bar for a while (time set in Settings) |
+| `Super + B` | Show the bar for a while |
 | `Super + G` | Game mode (osu! turns it on by itself) |
 | `Super + Shift + W` | Switch the `>wallpaper` picker between `~/Pictures/Wallpapers` and `~/Pictures/Wallpapers-q` |
 
-In a terminal, `fastfetch-en` and `fastfetch-jp` switch the grimoire's language (it remembers), and `rice-settings get` / `rice-settings set KEY VALUE` drive the Settings page from a shell. Night light (hyprsunset) follows a schedule set in Settings.
+In a terminal, `fastfetch-en` / `fastfetch-jp` switch the fastfetch box between English and Japanese, and `rice-settings get` / `rice-settings set KEY VALUE` do what the settings page does.
 
----
+## Layout
 
-## 👤 Credits
+```
+flake.nix        inputs, and one nixosConfiguration per folder in hosts/
+setup            the install wizard
+modules/         core, desktop, hardware, gaming, apps (all options are custom.*)
+hosts/nixos/     my laptop: drives, GRUB bridge, Kali VM network, personal packages
+hosts/generic/   fallback that uses /etc/nixos/hardware-configuration.nix
+pkgs/            DAMX and the linuwu-sense driver (Acer)
+dotfiles/        copied to ~/.config/<name>
+home/            copied to ~/ (Settings backend and scripts, .zshrc, lock screen picture)
+```
 
-* **Author**: Afterlight ([@Afterlight0338](https://github.com/Afterlight0338))
-* **Repository**: [https://github.com/Afterlight0338/my-nix-setup](https://github.com/Afterlight0338/my-nix-setup)
+## Notes
+
+- The CachyOS kernel and the Caelestia shell use their own pinned nixpkgs instead of following this one. That's what their binary caches were built with, so nothing gets compiled.
+- My laptop boots through CachyOS's GRUB; `hosts/nixos/boot-bridge.nix` keeps its menu in sync with NixOS generations. A normal install doesn't need any of that.
+- Hybrid AMD + NVIDIA laptops: set `custom.hardware.nvidia.prime.amdBusId` and `nvidiaBusId` (from `lspci`, written as `PCI:bus:device:function` in decimal) to let the NVIDIA GPU sleep and get `nvidia-offload <command>`.
+
+By Afterlight ([@Afterlight0338](https://github.com/Afterlight0338)).
