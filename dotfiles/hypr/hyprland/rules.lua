@@ -54,6 +54,15 @@ hl.window_rule({
     keep_aspect_ratio = true,
 })
 
+-- Screen share picker dialog
+hl.window_rule({
+    match = { title = "Select what to share" },
+    float = true,
+    pin   = true,
+})
+
+
+
 
 ----------------------
 ---- Tagged rules ----

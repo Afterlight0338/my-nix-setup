@@ -21,3 +21,6 @@ hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 
 -- Others
 hl.env("_JAVA_AWT_WM_NONREPARENTING", "1")
+
+-- Kate plugins built locally (kate-code)
+hl.env("QT_PLUGIN_PATH", os.getenv("HOME") .. "/.local/lib/plugins")

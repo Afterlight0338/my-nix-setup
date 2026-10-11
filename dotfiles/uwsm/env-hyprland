@@ -1,0 +1,17 @@
+# Primary render GPU, picked at login (Hyprland can't switch it live):
+# a display on the NVIDIA card (external monitor on its HDMI) -> NVIDIA first, renders natively there;
+# otherwise AMD first, so the RTX 3050 can sleep (PRIME fine-grained PM, see /etc/nixos/desktop-compat.nix).
+# Old fixed order: env-hyprland.bak-nvidia-first
+# gpu_mode: auto (above) | amd (always AMD first) | nvidia (always NVIDIA first). Rice Settings edits it.
+gpu_mode=auto
+dgpu="$(basename "$(readlink -f /dev/dri/nvidia-dgpu)")"
+# Only on a hybrid AMD+NVIDIA laptop with these udev names (desktop-compat.nix); elsewhere Hyprland picks itself
+if [ -e /dev/dri/amd-igpu ] && [ -e /dev/dri/nvidia-dgpu ]; then
+    if [ "$gpu_mode" = nvidia ] || { [ "$gpu_mode" = auto ] && grep -qx connected /sys/class/drm/"$dgpu"-*/status 2>/dev/null; }; then
+        export AQ_DRM_DEVICES="/dev/dri/nvidia-dgpu:/dev/dri/amd-igpu"
+    else
+        export AQ_DRM_DEVICES="/dev/dri/amd-igpu:/dev/dri/nvidia-dgpu"
+    fi
+fi
+unset dgpu gpu_mode
+export SHELL=/run/current-system/sw/bin/zsh

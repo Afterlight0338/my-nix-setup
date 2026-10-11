@@ -1,0 +1,12 @@
+# Japanese versions of the lines in quotes.txt, used when FASTFETCH_LANG is ja (the default).
+# These are Claude's own translations of the English lines, not the official Japanese text.
+# Keep each line to 26 characters or fewer so it fits on one row (longer ones get cut with …).
+限界かと思いましたが、努力が足りなかっただけでした。
+燻る火花よ、大いなる恵みを焼き尽くせ！
+ええ、ついに王級の水魔術を習得しました。
+今頃はもう帝級の魔術を習得しているかもしれませんね。
+そちらで何か困っていることはありませんか？
+はじめまして。
+ロキシー・ミグルディア・グレイラットと申します。
+期待していますよ。
+では、また手紙を書きますね。

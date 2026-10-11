@@ -1,21 +1,36 @@
 {
-    "appearance": {
-        "transparency": {
-            "enabled": true
-        }
-    },
-    "general": {
-        "idle": {
-            "inhibitWhenAudio": true,
-            "inhibitWhenCharging": false,
-            "lockBeforeSleep": true,
-            "timeouts": [
-                {
-                    "idleAction": "dpms off",
-                    "returnAction": "dpms on",
-                    "timeout": 10800
-                }
-            ]
-        }
+  "appearance": {
+    "transparency": {
+      "base": 0.6,
+      "enabled": true,
+      "layers": 0.4
     }
+  },
+  "bar": {
+    "persistent": false,
+    "showOnHover": true,
+    "workspaces": {
+      "activeTrail": true,
+      "occupiedBg": true,
+      "showWindows": true
+    }
+  },
+  "general": {
+    "idle": {
+      "inhibitWhenAudio": true,
+      "inhibitWhenCharging": false,
+      "lockBeforeSleep": true,
+      "timeouts": [
+        {
+          "idleAction": "dpms off",
+          "returnAction": "dpms on",
+          "timeout": 10800
+        }
+      ]
+    }
+  },
+  "paths": {
+    "lockNoNotifsPic": "~/Pictures/roxy-lock.png",
+    "wallpaperDir": "~/Pictures/Wallpapers"
+  }
 }
