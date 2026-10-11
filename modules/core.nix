@@ -122,6 +122,9 @@ in
         comma # , <command> runs anything from nixpkgs once
       ];
 
+      # flake nixpkgs has no programs.sqlite, so the stock "command not found" hint is off; nix-index reads the same DB
+      programs.nix-index.enable = true;
+
       # comma needs a nix-index database; fetch the prebuilt one weekly instead of indexing locally
       systemd.user.services.nix-index-database = {
         description = "Download prebuilt nix-index database for comma";
