@@ -1,136 +1,63 @@
 {
-  description = "Modular, portable & reproducible NixOS flake configuration";
+  description = "Afterlight's NixOS setup and Roxy Hyprland rice";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
 
-    nix-cachyos-kernel = {
-      url = "github:xddxdd/nix-cachyos-kernel/release";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Not following our nixpkgs on purpose: the prebuilt kernels in its cache are built
+    # against its own pinned nixpkgs, so following ours would compile the kernel locally.
+    nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
+
+    # Same idea: its own nixpkgs keeps quickshell and the shell identical to upstream builds.
+    caelestia-cli.url = "github:caelestia-dots/cli";
 
     linuwu-sense-src = {
       url = "github:0x7375646F/Linuwu-Sense";
       flake = false;
     };
-
-    caelestia-cli = {
-      url = "github:caelestia-dots/cli";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      flake-utils,
-      nix-cachyos-kernel,
-      linuwu-sense-src,
-      caelestia-cli,
-      ...
-    }@inputs:
+    { self, nixpkgs, ... }@inputs:
     let
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-linux"
-      ];
-      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      system = "x86_64-linux";
+      overlay = import ./pkgs { inherit inputs; };
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+        overlays = [ overlay ];
+      };
 
-      # Custom package overlays
-      customOverlay = import ./pkgs { inherit inputs; };
-
-      # Helper for building host configurations
+      # Every folder in hosts/ with a default.nix becomes nixosConfigurations.<folder>
       mkHost =
-        {
-          system ? "x86_64-linux",
-          hostname,
-          modules ? [ ],
-          specialArgs ? { },
-        }:
-        nixpkgs.lib.nixosSystem {
-          inherit system;
-          specialArgs = {
-            inherit inputs self;
-          } // specialArgs;
-          modules = [
-            {
-              nixpkgs.overlays = [ customOverlay ];
-              nixpkgs.config.allowUnfree = true;
-            }
-            ./modules
-            (./hosts + "/${hostname}")
-          ] ++ modules;
-        };
-
-      # Discover all host subdirectories in ./hosts dynamically
-      rawHosts = builtins.readDir ./hosts;
-      validHostNames = builtins.filter (
         name:
-        rawHosts.${name} == "directory" && builtins.pathExists (./hosts + "/${name}/default.nix")
-      ) (builtins.attrNames rawHosts);
-
-      discoveredHosts = nixpkgs.lib.genAttrs validHostNames (name: mkHost { hostname = name; });
+        nixpkgs.lib.nixosSystem {
+          specialArgs = { inherit inputs; };
+          modules = [
+            { nixpkgs.overlays = [ overlay ]; }
+            ./modules
+            ./hosts/${name}
+          ];
+        };
+      hosts = builtins.filter (name: builtins.pathExists ./hosts/${name}/default.nix) (
+        builtins.attrNames (builtins.readDir ./hosts)
+      );
     in
     {
-      nixosConfigurations = discoveredHosts // {
-        # Fallback default alias
-        default = discoveredHosts.generic or (mkHost { hostname = "generic"; });
+      nixosConfigurations = nixpkgs.lib.genAttrs hosts mkHost;
+
+      packages.${system} = {
+        inherit (pkgs) linuwu-sense damx-daemon damx-gui damx-suite;
+        setup = pkgs.writeShellScriptBin "setup" ''exec ${./setup} "$@"'';
       };
 
-      # Exported packages for standalone usage
-      packages = forAllSystems (
-        system:
-        let
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = [ customOverlay ];
-          };
-        in
-        {
-          linuwu-sense = pkgs.linuwu-sense;
-          damx-daemon = pkgs.damx-daemon;
-          damx-gui = pkgs.damx-gui;
-          damx-suite = pkgs.damx-suite;
-          whatsapp-custom = pkgs.whatsapp-custom;
-          setup = pkgs.writeShellScriptBin "setup" ''
-            exec ${./setup} "$@"
-          '';
-        }
-      );
-
-      apps = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          setup = {
-            type = "app";
-            program = "${self.packages.${system}.setup}/bin/setup";
-            meta.description = "Run interactive guided NixOS setup wizard";
-          };
-          default = {
-            type = "app";
-            program = "${self.packages.${system}.setup}/bin/setup";
-            meta.description = "Run interactive guided NixOS setup wizard";
-          };
-        }
-      );
-
-      # Reusable NixOS modules exported for external consumption
-      nixosModules = {
-        default = ./modules;
-        core = ./modules/core;
-        desktop = ./modules/desktop;
-        hardware = ./modules/hardware;
-        gaming = ./modules/gaming;
-        apps = ./modules/apps;
-        system = ./modules/system;
+      # nix run github:Afterlight0338/my-nix-setup
+      apps.${system}.default = {
+        type = "app";
+        program = "${self.packages.${system}.setup}/bin/setup";
+        meta.description = "Set this flake up on the current machine";
       };
 
-      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+      formatter.${system} = pkgs.nixfmt;
     };
 }
