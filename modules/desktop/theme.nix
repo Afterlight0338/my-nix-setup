@@ -49,6 +49,8 @@ in
 
       adwTheme
       pkgs.papirus-icon-theme
+      # Qt style the qtengine config uses (glass backgrounds via ~/.config/darklyrc)
+      pkgs.darkly
 
       pkgs.fastfetch
       pkgs.btop
