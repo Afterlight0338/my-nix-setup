@@ -86,7 +86,8 @@ my-nix-setup/
 │   ├── damx/                  # Linuwu-Sense kernel module, DAMX daemon & GUI
 │   └── whatsapp-custom/       # Wayland-native WhatsApp desktop wrapper
 │
-└── dotfiles/                  # Rice configurations (Hyprland, Caelestia, QtEngine, Kitty, Fastfetch, OTD, etc.)
+├── dotfiles/                  # Rice configurations (Hyprland, Caelestia, QtEngine, Kitty, Fastfetch, OTD, etc.)
+└── home/                      # Files outside ~/.config: Settings backend + scripts, ~/.zshrc, Darkly glass, lock picture
 ```
 
 ---
@@ -139,7 +140,22 @@ my-nix-setup/
 
 The desktop environment is themed around **Roxy Migurdia** (*Mushoku Tensei: Jobless Reincarnation*), using a dark charcoal foundation paired with water-magic icy blues, soft cream text, and subdued gold/tan accents.
 
-The palette is centralized in [`modules/desktop/roxy-palette.nix`](file:///home/afterlight/my-nix-setup/modules/desktop/roxy-palette.nix) and synchronized across Caelestia Shell, GTK (Adw-gtk3), Qt6 (Breeze + QtEngine), Fastfetch, Kitty, Btop, Cava, and Fuzzel.
+The palette is centralized in [`modules/desktop/roxy-palette.nix`](modules/desktop/roxy-palette.nix) and synchronized across Caelestia Shell, GTK (Adw-gtk3), Qt6 (Darkly glass + QtEngine), Fastfetch, Kitty, Btop, Cava, and Fuzzel.
+
+### ⚙️ Rice Settings & Hotkeys
+
+Almost everything in the rice can be changed from one page: press **Super+Shift+/**, or the ⚙ Settings button in the **Super+/** keybind cheat sheet. It has Simple and Advanced tabs, and changes apply live where they can (drag a slider and the card turns see-through so you can watch the desktop change).
+
+| Hotkey | What it does |
+| :--- | :--- |
+| `Super + /` | Keybind cheat sheet |
+| `Super + Shift + /` | Rice Settings |
+| `Super + Shift + N` | Do Not Disturb |
+| `Super + B` | Show the bar for a while (time set in Settings) |
+| `Super + G` | Game mode (osu! turns it on by itself) |
+| `Super + Shift + W` | Switch the `>wallpaper` picker between `~/Pictures/Wallpapers` and `~/Pictures/Wallpapers-q` |
+
+In a terminal, `fastfetch-en` and `fastfetch-jp` switch the grimoire's language (it remembers), and `rice-settings get` / `rice-settings set KEY VALUE` drive the Settings page from a shell. Night light (hyprsunset) follows a schedule set in Settings.
 
 ---
 

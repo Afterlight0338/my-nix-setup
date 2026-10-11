@@ -1,0 +1,505 @@
+#!/usr/bin/env bash
+set -u
+
+REAL_FASTFETCH="/run/current-system/sw/bin/fastfetch"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+GENERATED_CONFIG="$RUNTIME_DIR/roxy-fastfetch-${UID:-1000}.jsonc"
+
+# Pass standard help/version flags directly
+case "${1:-}" in
+  --version|-v|--help|-h|--list-features|--list-config-paths)
+    exec "$REAL_FASTFETCH" "$@"
+    ;;
+esac
+
+# Ensure COLUMNS and LINES are exported
+columns="${COLUMNS:-$(tput cols 2>/dev/null || echo 120)}"
+lines="${LINES:-$(tput lines 2>/dev/null || echo 40)}"
+
+w_level=3
+if (( columns < 80 )); then w_level=0
+elif (( columns < 120 )); then w_level=1
+elif (( columns < 160 )); then w_level=2
+fi
+
+h_level=3
+if (( lines < 22 )); then h_level=0
+elif (( lines < 32 )); then h_level=1
+elif (( lines < 42 )); then h_level=2
+fi
+
+level=$w_level
+(( h_level < level )) && level=$h_level
+
+logo_width=30
+(( level == 0 )) && logo_width=14
+(( level == 1 )) && logo_width=20
+(( level == 2 )) && logo_width=26
+
+# Colors for JSON (Fastfetch color codes)
+# Vivid fixed colors (sampled from an older render the user liked)
+FRAME="{#38;2;30;142;251}"   # azure
+KEY="{#38;2;24;249;250}"       # cyan
+TITLE="{#1;38;2;250;247;3}"   # bold yellow
+TEXT="{#38;2;250;250;250}"     # white
+QUOTE="{#3;37}"   # italic off-white (color 7)
+RESET="{#}"
+
+# Language: FASTFETCH_LANG, else what fastfetch-en / fastfetch-jp saved, else Japanese
+lang="${FASTFETCH_LANG:-$(cat "$HOME/.config/fastfetch/lang" 2>/dev/null)}"
+[[ "$lang" == en ]] || lang=ja
+declare -A L=() V=()
+if [[ "$lang" == ja ]]; then
+  L=(
+    [Theme]="テーマ" ["Operating System"]="OS" [Machine]="機種" [Kernel]="カーネル" [Uptime]="稼働時間"
+    [Packages]="パッケージ" [Generation]="世代" ["Days Since Install"]="インストールから"
+    [Processor]="CPU" [Graphics]="GPU" [Memory]="メモリ" [Swap]="スワップ"
+    ["NixOS Disk"]="NixOS ディスク" [Battery]="バッテリー" ["Power Adapter"]="電源"
+    [Compositor]="コンポジター" [Displays]="ディスプレイ" ["GTK Theme"]="GTK テーマ" [Icons]="アイコン"
+    [Terminal]="端末" ["Terminal Font"]="端末フォント" [Shell]="シェル"
+    ["Date & Time"]="日時" ["Now Playing"]="再生中" [Progress]="進行"
+    [SYSTEM]="システム" [HARDWARE]="ハードウェア" [DESKTOP]="デスクトップ" [STATUS]="ステータス"
+  )
+  # Substrings swapped inside values (never inside the song title)
+  V=(
+    [" days, "]="日 " [" hours, "]="時間 " [" mins"]="分"
+    [Charging]="充電中" [Discharging]="放電中" ["Not charging"]="充電停止" [Full]="満充電"
+    [Connected]="接続" [Disconnected]="未接続" ["(nix-system)"]="(システム)" ["(nix-user)"]="(ユーザー)" [Disabled]="無効" [Unknown]="不明"
+    ["Nothing playing"]="再生なし" [Playing]="再生中" [Paused]="一時停止" [Stopped]="停止"
+  )
+fi
+
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+
+trim() {
+  local value="$*"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+repeat_char() {
+  local char="$1"
+  local count="$2"
+  local output=""
+  if (( count > 0 )); then
+    printf -v output "%${count}s" ""
+    output="${output// /$char}"
+  fi
+  printf '%s' "$output"
+}
+
+# Double-width (CJK, fullwidth, emoji) ranges; everything else we print is one cell
+WIDE=$'\u1100'-$'\u115f'$'\u2e80'-$'\ua4cf'$'\uac00'-$'\ud7a3'$'\uf900'-$'\ufaff'$'\ufe30'-$'\ufe4f'$'\uff00'-$'\uff60'$'\uffe0'-$'\uffe6'$'\U1f300'-$'\U1faff'$'\U20000'-$'\U3fffd'
+
+visual_width() {
+  # Terminal display-cell width in pure bash (no wc fork): chars + one extra per wide char
+  local LC_ALL=C.UTF-8 s="$1"
+  local narrow="${s//[$WIDE]/}"
+  printf '%s' $(( 2 * ${#s} - ${#narrow} ))
+}
+
+truncate_text() {
+  local value="$1"
+  local limit="$2"
+  local vw
+  vw=$(visual_width "$value")
+  if (( limit <= 0 )); then
+    printf ''
+  elif (( vw > limit )); then
+    if (( limit == 1 )); then
+      printf '…'
+    else
+      # If character count equals visual width, we can safely slice
+      if (( ${#value} == vw )); then
+        printf '%s…' "${value:0:limit-1}"
+      else
+        # Slower fallback for strings with double-width characters
+        local result=""
+        local current_width=0
+        local char
+        local LC_ALL=C.UTF-8 cw
+        while IFS= read -r -n1 char; do
+          cw=1; [[ $char == [$WIDE] ]] && cw=2
+          if (( current_width + cw > limit - 1 )); then
+            break
+          fi
+          result+="$char"
+          current_width=$((current_width + cw))
+        done <<< "$value"
+        printf '%s…' "$result"
+      fi
+    fi
+  else
+    printf '%s' "$value"
+  fi
+}
+
+# usage_bar 42 -> ━━━━──────
+usage_bar() {
+  local filled=$(( ($1 * 10 + 50) / 100 ))
+  (( filled > 10 )) && filled=10
+  printf '%s%s' "$(repeat_char '━' "$filled")" "$(repeat_char '─' "$((10 - filled))")"
+}
+
+escape_json() {
+  local str="$1"
+  str="${str//\\/\\\\}"
+  str="${str//\"/\\\"}"
+  printf '%s' "$str"
+}
+
+get_uptime() {
+  awk '{
+    total = int($1)
+    days = int(total / 86400)
+    hours = int((total % 86400) / 3600)
+    minutes = int((total % 3600) / 60)
+    if (days > 0) printf "%d days, ", days
+    if (hours > 0) printf "%d hours, ", hours
+    printf "%d mins\n", minutes
+  }' /proc/uptime 2>/dev/null
+}
+
+get_memory() {
+  awk '
+    /^MemTotal:/ { total = $2 }
+    /^MemAvailable:/ { available = $2 }
+    END {
+      used = total - available
+      printf "%d %.1f / %.1f GiB", used * 100 / total, used / 1048576, total / 1048576
+    }
+  ' /proc/meminfo 2>/dev/null
+}
+
+get_terminal_font() {
+  local font=""
+  local size=""
+  local file
+  for file in "$HOME/.config/kitty/kitty.conf" "$HOME"/.config/kitty/*.conf; do
+    [[ -f "$file" ]] || continue
+    while IFS= read -r line; do
+      case "$line" in
+        font_family[[:space:]]*) font="$(trim "${line#font_family}")" ;;
+        font_size[[:space:]]*) size="$(trim "${line#font_size}")" ;;
+      esac
+    done < "$file"
+  done
+  [[ -n "$font" ]] || font="JetBrainsMono Nerd Font"
+  [[ -n "$size" ]] && printf '%s %s' "$font" "$size" || printf '%s' "$font"
+}
+
+# Sets np_title (track title only, channel/artist dropped) and np_progress (bar + time + state)
+get_now_playing() {
+  np_title="Nothing playing"
+  np_progress=""
+  command_exists playerctl || return
+  local status title pos len
+  status="$(playerctl status 2>/dev/null)" || return
+  title="$(playerctl metadata xesam:title 2>/dev/null)"
+  [[ -n "$title" ]] && np_title="${title//$'\n'/ }"
+  pos="$(playerctl position 2>/dev/null)"; pos="${pos%%.*}"
+  len="$(playerctl metadata mpris:length 2>/dev/null)"; len=$(( ${len:-0} / 1000000 ))
+  [[ "$pos" =~ ^[0-9]+$ ]] || pos=0
+  local icon="󰐊"; [[ "$status" == "Playing" ]] || icon="󰏤"
+  if (( len > 0 )); then
+    (( pos > len )) && pos=$len
+    np_progress="$(usage_bar $((pos * 100 / len))) $(printf '%d:%02d / %d:%02d' $((pos / 60)) $((pos % 60)) $((len / 60)) $((len % 60))) $icon"
+  else
+    np_progress="$icon $status"
+  fi
+}
+
+# --- Gather Information ---
+os="Linux"
+if [[ -r /etc/os-release ]]; then
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  os="${PRETTY_NAME:-${NAME:-Linux}}"
+fi
+host="$(cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || hostname -s)"
+kernel="$(uname -r)"
+uptime_value="$(get_uptime)"
+packages="Unknown"
+if command_exists nix-store && [[ -e /run/current-system ]]; then
+  # nix-store (~160 ms) and lspci (~70 ms) only change with the system generation: cache per generation
+  sys_cache="$RUNTIME_DIR/roxy-fastfetch-sys-$(basename "$(readlink -f /run/current-system)")"
+  if [[ -s "$sys_cache" ]]; then
+    { read -r sys_pkgs; read -r gpu; } < "$sys_cache"
+  else
+    sys_pkgs=$(nix-store --query --requisites /run/current-system 2>/dev/null | wc -l)
+  fi
+  user_pkgs=$(nix profile list --json 2>/dev/null | grep -c '"storePaths"')
+  flatpak_pkgs=$(flatpak list --app 2>/dev/null | wc -l)
+  packages="${flatpak_pkgs} (flatpak), ${sys_pkgs} (nix-system), ${user_pkgs} (nix-user)"
+fi
+installed_days=$(( ($(date +%s) - $(stat -c %W /)) / 86400 ))
+generation="Unknown"
+if [[ -L /nix/var/nix/profiles/system ]]; then
+  generation="$(basename "$(readlink /nix/var/nix/profiles/system)" | cut -d- -f2)"
+fi
+cpu="Unknown"
+if command_exists lscpu; then
+  cpu="$(lscpu 2>/dev/null | awk -F: '/Model name/ {sub(/^[[:space:]]+/, "", $2); print $2; exit}')"
+  if command_exists sensors; then
+    temp="$(sensors 2>/dev/null | awk '/Tctl:/ {print $2; exit}')"
+    [[ -n "$temp" ]] && cpu="$cpu - ${temp#+}"
+  fi
+fi
+[[ -n "${gpu:-}" ]] || gpu="Unknown"
+if [[ "$gpu" == "Unknown" ]] && command_exists lspci; then
+  gpu="$(lspci 2>/dev/null | awk -F': ' '/VGA compatible controller|3D controller/ {print $2}' | sed -E 's/ \(rev [^)]+\)$//; s/.*\[([^]]+)\].*/\1/' | paste -sd '|' - | sed 's/|/, /g')"
+  [[ -n "$gpu" ]] || gpu="Unknown"
+fi
+[[ -n "${sys_cache:-}" && ! -s "$sys_cache" ]] && printf '%s\n%s\n' "$sys_pkgs" "$gpu" > "$sys_cache"
+read -r mem_pct mem_rest <<< "$(get_memory)"
+memory="$(usage_bar "$mem_pct") $mem_rest"
+swap="$(awk 'NR>1 {t+=$3; u+=$4} END {if (t) printf "%.2f GiB / %.2f GiB", u/1048576, t/1048576; else print "Disabled"}' /proc/swaps)"
+read -r disk_pct disk_rest <<< "$(df -hP / 2>/dev/null | awk 'NR==2 {sub(/%/, "", $5); print $5, $3 " / " $2}')"
+disk="$(usage_bar "$disk_pct") $disk_rest"
+battery="Unknown"
+if [[ -d /sys/class/power_supply/BAT1 ]]; then
+  cap="$(cat /sys/class/power_supply/BAT1/capacity 2>/dev/null)"
+  stat="$(cat /sys/class/power_supply/BAT1/status 2>/dev/null)"
+  battery="$(usage_bar "$cap") ${cap}% ${stat}"
+elif [[ -d /sys/class/power_supply/BAT0 ]]; then
+  cap="$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null)"
+  stat="$(cat /sys/class/power_supply/BAT0/status 2>/dev/null)"
+  battery="$(usage_bar "$cap") ${cap}% ${stat}"
+fi
+poweradapter="Unknown"
+if [[ -d /sys/class/power_supply/ACAD ]]; then
+  online="$(cat /sys/class/power_supply/ACAD/online 2>/dev/null)"
+  [[ "$online" == "1" ]] && poweradapter="Connected" || poweradapter="Disconnected"
+elif [[ -d /sys/class/power_supply/AC ]]; then
+  online="$(cat /sys/class/power_supply/AC/online 2>/dev/null)"
+  [[ "$online" == "1" ]] && poweradapter="Connected" || poweradapter="Disconnected"
+fi
+wm="${XDG_CURRENT_DESKTOP:-${XDG_SESSION_DESKTOP:-unknown}}"
+if command_exists hyprctl; then
+  wm_version=$(hyprctl version -j 2>/dev/null | grep -oP '"tag": "\K[^"]+')
+  [[ -n "$wm_version" ]] && wm="Hyprland ${wm_version#v} (Wayland)"
+fi
+displays="Unknown"
+if command_exists hyprctl; then
+  if command_exists jq; then
+    displays="$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | "\(.width)x\(.height) @ \(.refreshRate | round)Hz"' 2>/dev/null | paste -sd '|' - | sed 's/|/, /g')"
+  else
+    displays="$(hyprctl monitors -j 2>/dev/null | awk '/"width":/ {gsub(/[^0-9]/, "", $0); w=$0} /"height":/ {gsub(/[^0-9]/, "", $0); h=$0} /"refreshRate":/ {gsub(/[^0-9.]/, "", $0); r=int($0); printf "%dx%d @ %dHz, ", w, h, r}' | sed 's/, $//')"
+  fi
+  [[ -n "$displays" ]] || displays="Unknown"
+fi
+theme="Unknown"
+icons="Unknown"
+if command_exists dconf; then
+  theme="$(dconf read /org/gnome/desktop/interface/gtk-theme 2>/dev/null | tr -d "'")"
+  icons="$(dconf read /org/gnome/desktop/interface/icon-theme 2>/dev/null | tr -d "'")"
+fi
+shell_name="$(basename "${SHELL:-unknown}")"
+if command_exists "$shell_name"; then
+  shell_ver=$("$shell_name" --version 2>/dev/null | head -n1 | awk '{print $4}')
+  [[ -n "$shell_ver" ]] && shell_name="$shell_name $shell_ver"
+fi
+if [[ -n "${KITTY_WINDOW_ID:-}" ]]; then
+  terminal="kitty"
+elif [[ -n "${TERM_PROGRAM:-}" ]]; then
+  terminal="$TERM_PROGRAM"
+else
+  terminal="${TERM:-unknown}"
+fi
+terminal_font="$(get_terminal_font)"
+datetime="$(date +"%Y-%m-%d  %H:%M")"
+theme_name="Roxy Migurdia • Arcane Blue"
+if [[ "$lang" == ja ]]; then
+  datetime="$(date +"%Y年%m月%d日 %H:%M")"
+  theme_name="ロキシー・ミグルディア • 秘術の青"
+  installed_days+="日"
+fi
+get_now_playing
+
+rows=(
+  "THEME:󰈸:Theme:$theme_name"
+  "SYSTEM::Operating System:$os"
+  ":󰌢:Machine:$host"
+  "::Kernel:$kernel"
+  ":󰅐:Uptime:$uptime_value"
+  ":󰏖:Packages:$packages"
+  ":󱄅:Generation:$generation"
+  ":󰃰:Days Since Install:$installed_days"
+  "HARDWARE::Processor:$cpu"
+  ":󰢮:Graphics:$gpu"
+  "::Memory:$memory"
+  ":󰓡:Swap:$swap"
+  ":󰋊:NixOS Disk:$disk"
+  ":󰁹:Battery:$battery"
+  ":󱐋:Power Adapter:$poweradapter"
+  "DESKTOP::Compositor:$wm"
+  ":󰍹:Displays:$displays"
+  ":󰉼:GTK Theme:$theme"
+  ":󰀻:Icons:$icons"
+  "::Terminal:$terminal"
+  "::Terminal Font:$terminal_font"
+  "::Shell:$shell_name"
+  "STATUS:󰃭:Date & Time:$datetime"
+  ":󰎆:Now Playing:$np_title"
+)
+
+# Rows carry their section so filtering a section drops every row in it
+[[ -n "$np_progress" ]] && rows+=(":󰔟:Progress:$np_progress")
+
+filtered_rows=()
+cur_sec=""
+for row in "${rows[@]}"; do
+  IFS=":" read -r sec icon key val <<< "$row"
+  [[ -n "$sec" ]] && cur_sec="$sec"
+  if (( level == 0 )); then
+    [[ "$cur_sec" == "STATUS" || "$cur_sec" == "THEME" ]] && continue
+    [[ "$key" == "Terminal Font" || "$key" == "Icons" || "$key" == "GTK Theme" || "$key" == "Displays" ]] && continue
+    [[ "$key" == "Power Adapter" || "$key" == "Swap" || "$key" == "NixOS Disk" || "$key" == "Graphics" ]] && continue
+    [[ "$key" == "Packages" || "$key" == "Generation" || "$key" == "Days Since Install" || "$key" == "Machine" ]] && continue
+  elif (( level == 1 )); then
+    [[ "$cur_sec" == "STATUS" || "$cur_sec" == "THEME" ]] && continue
+    [[ "$key" == "Power Adapter" || "$key" == "Terminal Font" || "$key" == "Icons" || "$key" == "GTK Theme" ]] && continue
+    [[ "$key" == "Machine" || "$key" == "Packages" || "$key" == "Generation" || "$key" == "Days Since Install" || "$key" == "Swap" || "$key" == "Displays" ]] && continue
+  elif (( level == 2 )); then
+    [[ "$cur_sec" == "THEME" ]] && continue
+  fi
+  if [[ "$lang" == ja ]]; then
+    if [[ "$key" != "Now Playing" ]]; then
+      for w in "${!V[@]}"; do val="${val//"$w"/${V[$w]}}"; done
+    fi
+    key="${L[$key]:-$key}"
+  fi
+  filtered_rows+=("$cur_sec:$icon:$key:$val")
+done
+
+max_line=0
+for row in "${filtered_rows[@]}"; do
+  IFS=":" read -r sec icon key val <<< "$row"
+  line="${icon} ${key} 󰁔 ${val}"
+  lw=$(visual_width "$line")
+  (( lw > max_line )) && max_line=$lw
+done
+
+# Random line from quotes.txt. It wraps instead of widening the box: a wider box
+# no longer fits a half-screen tile, and kitty rewraps it when a 2nd terminal opens.
+quote=""
+quotes_file="$HOME/.config/fastfetch/quotes.txt"
+[[ "$lang" == ja && -s "$HOME/.config/fastfetch/quotes.ja.txt" ]] && quotes_file="$HOME/.config/fastfetch/quotes.ja.txt"
+[[ -s "$quotes_file" ]] && quote="$(grep -v '^[[:space:]]*\(#\|$\)' "$quotes_file" | shuf -n 1)"
+# Wide (Japanese) quotes can't wrap, so they may widen the box; the half-tile cap below still holds
+quote_width=$(visual_width "$quote")
+(( quote_width != ${#quote} && quote_width + 4 > max_line )) && max_line=$((quote_width + 4))
+
+available=$((columns - logo_width - 8))
+(( available < 40 )) && available=40
+# Keep logo + box within a half-screen kitty tile (~97 cols at 1920px): anything wider gets
+# rewrapped into a mess when a 2nd terminal splits the screen. Long values are cut with …
+half_tile_cols=96
+(( available > half_tile_cols - logo_width - 6 )) && available=$((half_tile_cols - logo_width - 6))
+
+# Single Source of Truth for Geometry
+inner_width=$((max_line + 2))
+(( inner_width < 56 )) && inner_width=56
+(( inner_width > available )) && inner_width=$available
+
+box_width=$((inner_width + 2))
+
+# --- Generate JSON Output ---
+{
+  printf '{\n'
+  printf '  "logo": {\n'
+  printf '    "type": "kitty",\n'
+  printf '    "source": "%s/.config/fastfetch/assets/roxy-logo.png",\n' "$HOME"
+  printf '    "width": %d,\n' "$logo_width"
+  printf '    "padding": { "top": 1, "left": 1, "right": 3 }\n'
+  printf '  },\n'
+  printf '  "display": { "separator": "" },\n'
+  printf '  "modules": [\n'
+
+  title_text=" ✦ ROXY'S GRIMOIRE ✦ "
+  [[ "$lang" == ja ]] && title_text=" ✦ ロキシーの魔導書 ✦ "
+  title_width=$(visual_width "$title_text")
+  title_left=$(((inner_width - title_width) / 2))
+  title_right=$((inner_width - title_width - title_left))
+  line_str="${FRAME}╭$(repeat_char '─' "$title_left")${TITLE}${title_text}${FRAME}$(repeat_char '─' "$title_right")╮${RESET}"
+  printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
+
+  identity=" ${USER:-afterlight}@$(hostname -s) "
+  identity_width=$(visual_width "$identity")
+  identity_left=$(((inner_width - identity_width) / 2))
+  identity_right=$((inner_width - identity_width - identity_left))
+  line_str="${FRAME}│${RESET}$(repeat_char ' ' "$identity_left")${TITLE}${identity}${RESET}$(repeat_char ' ' "$identity_right")${FRAME}│${RESET}"
+  printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
+
+  shown_sec=""
+
+  # Quote lines, centred under the name (fold counts bytes, so wrap before adding the “ ” marks)
+  if [[ -n "$quote" ]]; then
+    q_open="“" q_close="”"
+    [[ "$lang" == ja ]] && q_open="「" q_close="」"
+    quote_max=$((inner_width - 2 - $(visual_width "$q_open$q_close")))
+    quote_width=$(visual_width "$quote")
+    if (( quote_width <= quote_max )); then
+      quote_lines=("$quote")
+    elif (( quote_width != ${#quote} )); then
+      # Wide (Japanese) text: fold would split characters mid-byte, so one line cut with …
+      quote_lines=("$(truncate_text "$quote" "$quote_max")")
+    else
+      quote_lines_n=$(fold -s -w "$quote_max" <<< "$quote" | wc -l)
+      # Narrowest width that still needs no extra line, so lines come out even (no lone last word)
+      quote_w=$(( (${#quote} + quote_lines_n - 1) / quote_lines_n ))
+      while (( quote_w < quote_max )) && (( $(fold -s -w "$quote_w" <<< "$quote" | wc -l) > quote_lines_n )); do
+        ((quote_w++))
+      done
+      mapfile -t quote_lines < <(fold -s -w "$quote_w" <<< "$quote")
+    fi
+    quote_lines[0]="$q_open${quote_lines[0]}"
+    quote_lines[-1]="${quote_lines[-1]%% }$q_close"
+    for q in "${quote_lines[@]}"; do
+      q="$(trim "$q")"
+      quote_width=$(visual_width "$q")
+      quote_left=$(((inner_width - quote_width) / 2))
+      quote_right=$((inner_width - quote_width - quote_left))
+      line_str="${FRAME}│${RESET}$(repeat_char ' ' "$quote_left")${QUOTE}${q}${RESET}$(repeat_char ' ' "$quote_right")${FRAME}│${RESET}"
+      printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
+    done
+  fi
+
+  for row in "${filtered_rows[@]}"; do
+    IFS=":" read -r sec icon key val <<< "$row"
+
+    if [[ "$sec" != "$shown_sec" && "$sec" != "THEME" ]]; then
+      shown_sec="$sec"
+      sec_title="├─ ${L[$sec]:-$sec} "
+      sec_title_width=$(visual_width "$sec_title")
+      sec_fill=$((box_width - sec_title_width - 1))
+      line_str="${FRAME}${sec_title}$(repeat_char '─' "$sec_fill")┤${RESET}"
+      printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
+    fi
+    
+    key_part="${icon} ${key} 󰁔 "
+    key_part_width=$(visual_width "$key_part")
+    
+    # Calculate limits for value truncation based on box_width
+    value_limit=$((box_width - 4 - key_part_width))
+    shown_value="$(truncate_text "${val}" "$value_limit")"
+    
+    shown_value_width=$(visual_width "$shown_value")
+    used=$((key_part_width + shown_value_width))
+    
+    padding=$((box_width - 4 - used))
+    (( padding < 0 )) && padding=0
+
+    line_str="${FRAME}│${RESET} ${KEY}${key_part}${TEXT}${shown_value}${RESET}$(repeat_char ' ' "$padding") ${FRAME}│${RESET}"
+    printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
+  done
+
+  line_str="${FRAME}╰$(repeat_char '─' "$inner_width")╯${RESET}"
+  printf '    { "type": "custom", "format": "%s" }\n' "$(escape_json "$line_str")"
+  printf '  ]\n'
+  printf '}\n'
+} > "$GENERATED_CONFIG"
+
+# Execute real Fastfetch natively to render the Kitty image and align the generated custom modules.
+exec "$REAL_FASTFETCH" --config "$GENERATED_CONFIG" "$@"

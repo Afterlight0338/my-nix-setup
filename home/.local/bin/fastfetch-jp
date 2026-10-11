@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Switch the grimoire to Japanese for good, then show it
+echo ja > "$HOME/.config/fastfetch/lang" && exec "$HOME/.local/bin/fastfetch" "$@"

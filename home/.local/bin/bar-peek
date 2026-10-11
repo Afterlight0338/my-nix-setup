@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Toggle the Caelestia bar in "open" mode (windows make room for it).
+# Opening starts a timer that hides it again after $secs seconds (0 = stays open). Rice Settings edits secs.
+secs=${1:-60}
+pidfile="${XDG_RUNTIME_DIR:-/tmp}/bar-peek.pid"
+[[ -f "$pidfile" ]] && kill "$(cat "$pidfile")" 2>/dev/null
+rm -f "$pidfile"
+
+if [[ "$(caelestia shell drawers isOpen bar)" == 1 ]]; then
+    caelestia shell drawers toggle bar
+    exit
+fi
+
+caelestia shell drawers toggle bar
+(( secs > 0 )) || exit
+(
+    sleep "$secs"
+    [[ "$(caelestia shell drawers isOpen bar)" == 1 ]] && caelestia shell drawers toggle bar
+    rm -f "$pidfile"
+) &
+echo $! > "$pidfile"

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Switch the grimoire to English for good, then show it
+echo en > "$HOME/.config/fastfetch/lang" && exec "$HOME/.local/bin/fastfetch" "$@"

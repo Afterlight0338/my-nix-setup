@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Toggle the Caelestia wallpaper picker between ~/Pictures/Wallpapers and ~/Pictures/Wallpapers-q.
+# Switching back to safe also swaps the current wallpaper out if it came from the -q folder.
+safe="$HOME/Pictures/Wallpapers"
+spicy="$HOME/Pictures/Wallpapers-q"
+cfg="$HOME/.config/caelestia/shell.json"
+
+current_dir="$(jq -r '.paths.wallpaperDir // empty' "$cfg")"
+if [[ "$current_dir" == "$spicy" ]]; then
+    target="$safe"
+    # Set the normal folder explicitly: if the key is just deleted, the running shell keeps the old
+    # folder in memory and writes it back to shell.json the next time it saves its config
+    jq --arg d "$safe" '.paths.wallpaperDir = $d' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+    wall="$(cat "$HOME/.local/state/caelestia/wallpaper/path.txt" 2>/dev/null)"
+    [[ "$wall" == "$spicy"/* ]] && caelestia wallpaper -r "$safe" -n
+    caelestia shell toaster info "Wallpapers" "Back to the normal set" "wallpaper"
+else
+    jq --arg d "$spicy" '.paths.wallpaperDir = $d' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+    caelestia shell toaster info "Wallpapers" "Questionable set enabled (>wallpaper)" "wallpaper"
+fi

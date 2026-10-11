@@ -481,6 +481,24 @@ HOST_CONFIG_EOF
       fi
     done
 
+    # Files outside ~/.config: Settings backend + scripts (~/.local/bin), ~/.zshrc, Darkly glass
+    # (~/.config/darklyrc), lock screen picture. Existing files that differ are backed up first.
+    if [ -d home ]; then
+      stamp=$(date +%Y%m%d%H%M%S)
+      (cd home && find . -type f) | while IFS= read -r f; do
+        f="${f#./}"
+        dest="$TARGET_HOME/$f"
+        mkdir -p "$(dirname "$dest")"
+        if [ -e "$dest" ] && ! cmp -s "home/$f" "$dest"; then
+          cp -a "$dest" "$dest.backup-$stamp"
+          print_info "Existing ~/$f backed up to $(basename "$dest").backup-$stamp"
+        fi
+        cp -a "home/$f" "$dest"
+        [ -n "${SUDO_USER:-}" ] && chown "${SUDO_USER}:users" "$dest" 2>/dev/null
+      done
+      print_success "Installed Settings backend, scripts, ~/.zshrc and lock picture"
+    fi
+
     # Set ownership if running under sudo
     if [ -n "${SUDO_USER:-}" ]; then
       chown -R "${SUDO_USER}:users" "$TARGET_HOME/.config" 2>/dev/null || true

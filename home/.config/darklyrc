@@ -1,0 +1,9 @@
+[Style]
+# Kitty-style glass: backgrounds see-through (percent), text and icons stay solid
+TransparentDolphinView=false
+DolphinViewOpacity=65
+DolphinSidebarOpacity=65
+ToolBarOpacity=65
+MenuBarOpacity=65
+TabBarOpacity=65
+MenuOpacity=85

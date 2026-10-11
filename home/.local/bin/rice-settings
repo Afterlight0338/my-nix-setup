@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+# Backend for the Rice Settings page in the keybind cheat sheet (~/.config/quickshell/cheatsheet).
+#   rice-settings get              every setting as JSON: schema + current value
+#   rice-settings set KEY VALUE    write it where it already lives, then apply it live where possible
+#   rice-settings apply-gamma      (re)start wl-gammactl with the saved gamma (run at login)
+# Each setting stays in its original file, so the old commands and hotkeys keep working.
+set -uo pipefail
+
+HV="$HOME/.config/caelestia/hypr-vars.lua"      # overrides
+HV_DEFAULTS="$HOME/.config/hypr/variables.lua"  # Caelestia defaults
+HU="$HOME/.config/caelestia/hypr-user.lua"
+KITTY="$HOME/.config/kitty/kitty.conf"
+ZSHRC="$HOME/.zshrc"
+FF="$HOME/.local/bin/fastfetch"
+BAR="$HOME/.local/bin/bar-peek"
+ENVH="$HOME/.config/uwsm/env-hyprland"
+SHELLJSON="$HOME/.config/caelestia/shell.json"
+DARKLY="$HOME/.config/darklyrc"
+GAMMA_STATE="$HOME/.cache/wl-gamma"
+NIGHT="$HOME/.config/hypr/hyprsunset.conf"
+
+schema() {
+  cat <<'EOF'
+[
+ {"key":"fastfetch_lang","tab":"simple","section":"Language","label":"Fastfetch language","type":"choice","options":[["en","English"],["ja","日本語"]]},
+ {"key":"japanese_workspaces","tab":"simple","section":"Language","label":"Japanese workspace numbers (一 二 三)","type":"bool"},
+
+ {"key":"fastfetch_greet","tab":"simple","section":"Terminal","label":"Fastfetch when a terminal opens","type":"bool"},
+ {"key":"kitty_opacity","tab":"simple","section":"Terminal","label":"Terminal opacity","type":"slider","min":0.3,"max":1,"step":0.05},
+ {"key":"cursor_trail","tab":"simple","section":"Terminal","label":"Cursor trail","type":"bool"},
+ {"key":"zsh_autosuggest","tab":"simple","section":"Terminal","label":"Command suggestions (new terminals)","type":"bool"},
+ {"key":"zsh_highlight","tab":"simple","section":"Terminal","label":"Command colouring (new terminals)","type":"bool"},
+ {"key":"qt_opacity","tab":"simple","section":"Terminal","label":"Qt apps opacity (Dolphin, Kate…; reopen them)","type":"slider","min":0.3,"max":1,"step":0.05},
+
+ {"key":"bar_hide_secs","tab":"simple","section":"Desktop","label":"Bar hides after (Super+B), 0 = never","type":"slider","min":0,"max":300,"step":10,"unit":"s"},
+ {"key":"blur_preset","tab":"simple","section":"Desktop","label":"Blur strength","type":"choice","options":[["low","Low"],["medium","Medium"],["high","High"]]},
+ {"key":"gamma","tab":"simple","section":"Desktop","label":"Screen gamma","type":"slider","min":0.5,"max":1.5,"step":0.05},
+ {"key":"dnd","tab":"simple","section":"Desktop","label":"Do Not Disturb (Super+Shift+N)","type":"bool"},
+ {"key":"animated_border","tab":"simple","section":"Desktop","label":"Animated window border","type":"bool"},
+ {"key":"lock_on_login","tab":"simple","section":"Desktop","label":"Lock screen on login","type":"bool"},
+
+ {"key":"night_light","tab":"simple","section":"Night light","label":"Night light","type":"choice","options":[["off","Off"],["schedule","Schedule"],["always","Always"]]},
+ {"key":"night_temp","tab":"simple","section":"Night light","label":"Warmth (lower = warmer)","type":"slider","min":2500,"max":6000,"step":100,"unit":"K"},
+ {"key":"night_start","tab":"simple","section":"Night light","label":"Starts at","type":"time"},
+ {"key":"night_end","tab":"simple","section":"Night light","label":"Ends at","type":"time"},
+
+ {"key":"osu_auto_game_mode","tab":"simple","section":"Gaming","label":"osu! turns on game mode","type":"bool"},
+ {"key":"game_mode","tab":"simple","section":"Gaming","label":"Game mode right now","type":"bool"},
+
+ {"key":"folder_color","tab":"simple","section":"Wallpaper & GPU","label":"Folder colour (reopen apps)","type":"choice","options":[["blue","Blue"],["indigo","Indigo"],["nordic","Nordic"],["violet","Violet"],["cyan","Cyan"]]},
+ {"key":"questionable_wallpapers","tab":"simple","section":"Wallpaper & GPU","label":"Questionable wallpapers","type":"bool"},
+ {"key":"gpu_mode","tab":"simple","section":"Wallpaper & GPU","label":"Desktop GPU (next login)","type":"choice","options":[["auto","Auto"],["amd","AMD"],["nvidia","NVIDIA"]]},
+
+ {"key":"terminal","tab":"simple","section":"Default apps","label":"Terminal","type":"text"},
+ {"key":"browser","tab":"simple","section":"Default apps","label":"Browser","type":"text"},
+ {"key":"editor","tab":"simple","section":"Default apps","label":"Editor","type":"text"},
+ {"key":"fileExplorer","tab":"simple","section":"Default apps","label":"File manager","type":"text"},
+ {"key":"audioSettings","tab":"simple","section":"Default apps","label":"Audio settings","type":"text"},
+
+ {"key":"windowGapsIn","tab":"advanced","section":"Windows","label":"Gap between windows","type":"int","min":0,"max":30},
+ {"key":"windowGapsOut","tab":"advanced","section":"Windows","label":"Gap to screen edge","type":"int","min":0,"max":60},
+ {"key":"singleWindowGapsOut","tab":"advanced","section":"Windows","label":"Edge gap, single window","type":"int","min":0,"max":80},
+ {"key":"workspaceGaps","tab":"advanced","section":"Windows","label":"Workspace gaps","type":"int","min":0,"max":80},
+ {"key":"windowRounding","tab":"advanced","section":"Windows","label":"Corner rounding","type":"int","min":0,"max":30},
+ {"key":"windowBorderSize","tab":"advanced","section":"Windows","label":"Border size","type":"int","min":0,"max":6},
+ {"key":"windowOpacity","tab":"advanced","section":"Windows","label":"Window opacity","type":"slider","min":0.5,"max":1,"step":0.05},
+
+ {"key":"blurEnabled","tab":"advanced","section":"Blur","label":"Blur","type":"bool"},
+ {"key":"blurSize","tab":"advanced","section":"Blur","label":"Blur size","type":"int","min":1,"max":20},
+ {"key":"blurPasses","tab":"advanced","section":"Blur","label":"Blur passes","type":"int","min":1,"max":6},
+ {"key":"blurPopups","tab":"advanced","section":"Blur","label":"Blur popups","type":"bool"},
+ {"key":"blurXray","tab":"advanced","section":"Blur","label":"X-ray (blur only the wallpaper)","type":"bool"},
+ {"key":"blurSpecialWs","tab":"advanced","section":"Blur","label":"Blur special workspaces","type":"bool"},
+ {"key":"blurInputMethods","tab":"advanced","section":"Blur","label":"Blur input method popups","type":"bool"},
+
+ {"key":"shadowEnabled","tab":"advanced","section":"Shadows","label":"Shadows","type":"bool"},
+ {"key":"shadowRange","tab":"advanced","section":"Shadows","label":"Shadow range","type":"int","min":0,"max":50},
+ {"key":"shadowRenderPower","tab":"advanced","section":"Shadows","label":"Shadow falloff","type":"int","min":1,"max":4},
+
+ {"key":"touchpadDisableTyping","tab":"advanced","section":"Touchpad","label":"Disable touchpad while typing","type":"bool"},
+ {"key":"touchpadScrollFactor","tab":"advanced","section":"Touchpad","label":"Touchpad scroll speed","type":"slider","min":0.1,"max":2,"step":0.05},
+ {"key":"gestureFingers","tab":"advanced","section":"Touchpad","label":"Gesture fingers","type":"int","min":3,"max":5},
+ {"key":"workspaceSwipeFingers","tab":"advanced","section":"Touchpad","label":"Workspace swipe fingers","type":"int","min":3,"max":5},
+
+ {"key":"cursorTheme","tab":"advanced","section":"Cursor & volume","label":"Cursor theme","type":"text"},
+ {"key":"cursorSize","tab":"advanced","section":"Cursor & volume","label":"Cursor size","type":"int","min":16,"max":64},
+ {"key":"volumeStep","tab":"advanced","section":"Cursor & volume","label":"Volume step","type":"int","min":1,"max":20},
+ {"key":"volumeMax","tab":"advanced","section":"Cursor & volume","label":"Max volume","type":"int","min":100,"max":150},
+
+ {"key":"kitty_padding","tab":"advanced","section":"Terminal (kitty)","label":"Padding","type":"int","min":0,"max":40},
+ {"key":"kitty_shade","tab":"advanced","section":"Terminal (kitty)","label":"Top shade background image","type":"bool"},
+ {"key":"kitty_text","tab":"advanced","section":"Terminal (kitty)","label":"Text sharpness (gamma contrast)","type":"text"},
+
+ {"key":"greet_min_cols","tab":"advanced","section":"Fastfetch","label":"Greet only if columns ≥","type":"int","min":40,"max":200},
+ {"key":"greet_min_lines","tab":"advanced","section":"Fastfetch","label":"Greet only if lines ≥","type":"int","min":10,"max":80},
+ {"key":"half_tile_cols","tab":"advanced","section":"Fastfetch","label":"Max width (half-screen tile)","type":"int","min":60,"max":200}
+]
+EOF
+}
+
+# --- hypr-vars.lua: "name = value," lines; reads fall back to Caelestia's variables.lua ---
+lua_value() { sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*(.*[^,[:space:]]),?[[:space:]]*(--.*)?$/\1/p" "$2" | tail -1; }
+hv_get() {
+  local v; v="$(lua_value "$1" "$HV")"
+  [[ -n "$v" ]] || v="$(lua_value "$1" "$HV_DEFAULTS")"
+  v="${v%,}"; v="${v#\"}"; v="${v%\"}"
+  printf '%s' "$v"
+}
+hv_set() { # name value(already Lua-formatted)
+  if grep -qE "^[[:space:]]*$1[[:space:]]*=" "$HV"; then
+    sed -i -E "s|^([[:space:]]*$1[[:space:]]*=[[:space:]]*).*$|\1$2,|" "$HV"
+  else
+    # insert before the final closing brace
+    awk -v line="    $1 = $2," '{ l[NR] = $0 } /^}/ { last = NR } END { for (i = 1; i <= NR; i++) { if (i == last) print line; print l[i] } }' "$HV" > "$HV.tmp" && mv "$HV.tmp" "$HV"
+  fi
+}
+hv_reload() { hyprctl reload >/dev/null 2>&1; }
+
+# --- kitty.conf: "key value" lines ---
+kitty_get() { sed -nE "s/^$1[[:space:]]+(.*)$/\1/p" "$KITTY" | tail -1; }
+kitty_set() {
+  if grep -qE "^$1[[:space:]]" "$KITTY"; then sed -i -E "s|^$1[[:space:]].*$|$1 $2|" "$KITTY"
+  else printf '%s %s\n' "$1" "$2" >> "$KITTY"; fi
+  pkill -USR1 -x .kitty-wrapped 2>/dev/null || true # reload every kitty window
+}
+
+lua_flag_get() { sed -nE "s/^local $1 = (true|false)$/\1/p" "$HU"; }
+lua_flag_set() { sed -i -E "s/^local $1 = (true|false)$/local $1 = $2/" "$HU"; }
+
+# Papirus folder colour without touching the read-only theme: a user Papirus-Dark that only holds the
+# folder icons, relinked from "-blue" to the chosen colour (icon lookup checks ~/.local/share first).
+ICON_OVERLAY="$HOME/.local/share/icons/Papirus-Dark"
+SYS_ICONS=/run/current-system/sw/share/icons
+folder_color_get() { cat "$ICON_OVERLAY/.rice-folder-color" 2>/dev/null || echo blue; }
+folder_color_set() {
+  [[ -d "$ICON_OVERLAY" && ! -f "$ICON_OVERLAY/.rice-folder-color" ]] && die "$ICON_OVERLAY isn't ours, leaving it alone"
+  rm -rf "$ICON_OVERLAY"
+  [[ "$1" == blue ]] && return # Papirus default
+  local size real link tgt new n=0
+  for size in "$SYS_ICONS"/Papirus-Dark/*/; do
+    size="$(basename "$size")"
+    [[ -d "$SYS_ICONS/Papirus-Dark/$size/places" && ! "$size" == *@* ]] || continue
+    real="$(readlink -f "$SYS_ICONS/Papirus-Dark/$size/places")"
+    for link in "$real"/*; do
+      [[ -L "$link" ]] || continue
+      tgt="$(readlink "$link")"; [[ "$tgt" == *-blue* ]] || continue
+      new="$(realpath -m "$real/${tgt//-blue/-$1}")"; [[ -e "$new" ]] || continue
+      mkdir -p "$ICON_OVERLAY/$size/places"
+      ln -s "${new/#\/nix\/store\/*\/share\/icons\//$SYS_ICONS/}" "$ICON_OVERLAY/$size/places/$(basename "$link")"; n=$((n + 1))
+    done
+    [[ -L "$SYS_ICONS/Papirus-Dark/${size}@2x" && -d "$ICON_OVERLAY/$size" ]] && ln -s "$size" "$ICON_OVERLAY/${size}@2x"
+  done
+  ln -s "$SYS_ICONS/Papirus-Dark/index.theme" "$ICON_OVERLAY/index.theme"
+  echo "$1" > "$ICON_OVERLAY/.rice-folder-color"
+  (( n > 0 )) || die "no folder icons found for colour $1"
+}
+
+# Night light: hyprsunset runs all session (started in hypr-user.lua) and follows the profiles in its
+# config; the first line keeps the settings so this script can read them back.
+night_get() { # field: mode|temp|start|end
+  local line; line="$(head -1 "$NIGHT" 2>/dev/null)"
+  [[ "$line" == "# rice:"* ]] || line="# rice: mode=schedule temp=4000 start=19:00 end=07:00"
+  sed -nE "s/.* $1=([^ ]+).*/\1/p" <<< "$line"
+}
+night_write() { # mode temp start end
+  {
+    echo "# rice: mode=$1 temp=$2 start=$3 end=$4"
+    echo "# Written by rice-settings (Settings > Night light); edits here get overwritten."
+    case "$1" in
+      off) printf 'profile {\n    time = 00:00\n    identity = true\n}\n' ;;
+      always) printf 'profile {\n    time = 00:00\n    temperature = %s\n}\n' "$2" ;;
+      schedule) printf 'profile {\n    time = %s\n    identity = true\n}\nprofile {\n    time = %s\n    temperature = %s\n}\n' "$4" "$3" "$2" ;;
+    esac
+  } > "$NIGHT"
+  # restart; the new one fails if the old one still holds its socket, so wait for it to exit (max 2 s)
+  pkill -x hyprsunset 2>/dev/null
+  local i; for i in $(seq 20); do pgrep -x hyprsunset >/dev/null || break; sleep 0.1; done
+  setsid -f hyprsunset >/dev/null 2>&1
+}
+
+apply_gamma() {
+  local g; g="$(cat "$GAMMA_STATE" 2>/dev/null || echo 1.0)"
+  pkill -x wl-gammactl 2>/dev/null
+  awk -v g="$g" 'BEGIN { exit !(g + 0 == 1) }' || setsid -f wl-gammactl -g "$g" >/dev/null 2>&1
+}
+
+value_of() {
+  case "$1" in
+    fastfetch_lang) local l; l="$(cat "$HOME/.config/fastfetch/lang" 2>/dev/null)"; [[ "$l" == en ]] && echo en || echo ja ;;
+    japanese_workspaces|lock_on_login|osu_auto_game_mode|animated_border) lua_flag_get "$1" ;;
+    fastfetch_greet|zsh_autosuggest|zsh_highlight) grep -qE "^$1=1" "$ZSHRC" && echo true || echo false ;;
+    greet_min_cols) sed -nE 's/.*COLUMNS >= ([0-9]+).*fastfetch$/\1/p' "$ZSHRC" ;;
+    greet_min_lines) sed -nE 's/.*LINES >= ([0-9]+).*fastfetch$/\1/p' "$ZSHRC" ;;
+    half_tile_cols) sed -nE 's/^half_tile_cols=([0-9]+)$/\1/p' "$FF" ;;
+    kitty_opacity) kitty_get background_opacity ;;
+    kitty_padding) kitty_get window_padding_width ;;
+    kitty_text) kitty_get text_composition_strategy ;;
+    kitty_shade) [[ "$(kitty_get background_image)" == none || -z "$(kitty_get background_image)" ]] && echo false || echo true ;;
+    cursor_trail) [[ "$(kitty_get cursor_trail)" =~ ^[1-9] ]] && echo true || echo false ;;
+    bar_hide_secs) sed -nE 's/^secs=\$\{1:-([0-9]+)\}$/\1/p' "$BAR" ;;
+    blur_preset)
+      case "$(hv_get blurSize)/$(hv_get blurPasses)" in
+        4/2) echo low ;; 6/3) echo medium ;; 10/4) echo high ;; *) echo custom ;;
+      esac ;;
+    gamma) cat "$GAMMA_STATE" 2>/dev/null || echo 1.0 ;;
+    dnd) caelestia shell notifs isDndEnabled 2>/dev/null | grep -q true && echo true || echo false ;;
+    game_mode) caelestia shell gameMode isEnabled 2>/dev/null | grep -q true && echo true || echo false ;;
+    questionable_wallpapers) [[ "$(jq -r '.paths.wallpaperDir // empty' "$SHELLJSON")" == "$HOME/Pictures/Wallpapers-q" ]] && echo true || echo false ;;
+    gpu_mode) sed -nE 's/^gpu_mode=([a-z]+).*/\1/p' "$ENVH" ;;
+    folder_color) folder_color_get ;;
+    night_light) night_get mode ;;
+    night_temp) night_get temp ;;
+    night_start) night_get start ;;
+    night_end) night_get end ;;
+    qt_opacity) awk -F= '/^DolphinViewOpacity=/ { printf "%.2f", $2 / 100 }' "$DARKLY" ;;
+    *) hv_get "$1" ;;
+  esac
+}
+
+cmd_get() {
+  local s keys k vals="{}"
+  s="$(schema)"
+  mapfile -t keys < <(jq -r '.[].key' <<< "$s")
+  local args=()
+  for k in "${keys[@]}"; do args+=(--arg "$k" "$(value_of "$k")"); done
+  vals="$(jq -n '$ARGS.named' "${args[@]}")"
+  jq --argjson v "$vals" 'map(. + {value: (
+      $v[.key] as $x
+      | if .type == "bool" then $x == "true"
+        elif .type == "int" or .type == "slider" then ($x | tonumber? // null)
+        else $x end)})' <<< "$s"
+}
+
+die() { echo "rice-settings: $*" >&2; exit 1; }
+
+cmd_set() {
+  local key="$1" val="$2" spec type
+  spec="$(schema | jq -c --arg k "$key" '.[] | select(.key == $k)')"
+  [[ -n "$spec" ]] || die "unknown setting: $key"
+  type="$(jq -r .type <<< "$spec")"
+  case "$type" in
+    bool) [[ "$val" == true || "$val" == false ]] || die "$key wants true/false" ;;
+    int|slider)
+      [[ "$val" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] || die "$key wants a number"
+      jq -e --argjson v "$val" '$v >= .min and $v <= .max' <<< "$spec" >/dev/null || die "$key out of range"
+      [[ "$type" == int ]] && [[ ! "$val" =~ ^[0-9]+$ ]] && die "$key wants a whole number" ;;
+    choice) jq -e --arg v "$val" 'any(.options[]; .[0] == $v)' <<< "$spec" >/dev/null || die "$key: not an option" ;;
+    text) [[ "$val" =~ ^[A-Za-z0-9._\ /+-]+$ ]] || die "$key: letters, numbers and . _ - + / only" ;;
+    time) [[ "$val" =~ ^([01]?[0-9]|2[0-3]):[0-5][0-9]$ ]] || die "$key: use HH:MM, like 19:00" ;;
+  esac
+
+  case "$key" in
+    fastfetch_lang) echo "$val" > "$HOME/.config/fastfetch/lang" ;;
+    japanese_workspaces|osu_auto_game_mode|lock_on_login|animated_border) lua_flag_set "$key" "$val"; hv_reload ;;
+    fastfetch_greet|zsh_autosuggest|zsh_highlight) sed -i -E "s/^$key=[01]/$key=$([[ $val == true ]] && echo 1 || echo 0)/" "$ZSHRC" ;;
+    greet_min_cols) sed -i -E "s/(COLUMNS >= )[0-9]+(.*fastfetch)$/\1$val\2/" "$ZSHRC" ;;
+    greet_min_lines) sed -i -E "s/(LINES >= )[0-9]+(.*fastfetch)$/\1$val\2/" "$ZSHRC" ;;
+    half_tile_cols) sed -i -E "s/^half_tile_cols=[0-9]+$/half_tile_cols=$val/" "$FF" ;;
+    kitty_opacity) kitty_set background_opacity "$val" ;;
+    kitty_padding) kitty_set window_padding_width "$val" ;;
+    kitty_text) kitty_set text_composition_strategy "$val" ;;
+    kitty_shade) kitty_set background_image "$([[ $val == true ]] && echo top-shade.png || echo none)" ;;
+    cursor_trail) kitty_set cursor_trail "$([[ $val == true ]] && echo 3 || echo 0)" ;;
+    bar_hide_secs) sed -i -E "s/^secs=\\\$\{1:-[0-9]+\}$/secs=\${1:-$val}/" "$BAR" ;;
+    blur_preset)
+      case "$val" in low) hv_set blurSize 4; hv_set blurPasses 2 ;; medium) hv_set blurSize 6; hv_set blurPasses 3 ;; high) hv_set blurSize 10; hv_set blurPasses 4 ;; esac
+      hv_reload ;;
+    gamma) echo "$val" > "$GAMMA_STATE"; apply_gamma ;;
+    game_mode) caelestia shell gameMode "$([[ $val == true ]] && echo enable || echo disable)" >/dev/null ;;
+    dnd) caelestia shell notifs "$([[ $val == true ]] && echo enableDnd || echo disableDnd)" >/dev/null ;;
+    questionable_wallpapers) [[ "$(value_of questionable_wallpapers)" == "$val" ]] || "$HOME/.local/bin/wallpaper-mode" ;;
+    gpu_mode) sed -i -E "s/^gpu_mode=[a-z]+/gpu_mode=$val/" "$ENVH" ;;
+    folder_color) folder_color_set "$val" ;;
+    night_light) night_write "$val" "$(night_get temp)" "$(night_get start)" "$(night_get end)" ;;
+    night_temp) night_write "$(night_get mode)" "$val" "$(night_get start)" "$(night_get end)" ;;
+    night_start) night_write "$(night_get mode)" "$(night_get temp)" "$val" "$(night_get end)" ;;
+    night_end) night_write "$(night_get mode)" "$(night_get temp)" "$(night_get start)" "$val" ;;
+    qt_opacity) # Darkly reads these when an app starts; menus stay a bit more solid
+      local pct menu; pct=$(awk -v v="$val" 'BEGIN { printf "%d", v * 100 + 0.5 }'); menu=$(( pct + 20 > 100 ? 100 : pct + 20 ))
+      sed -i -E "s/^((DolphinView|DolphinSidebar|ToolBar|MenuBar|TabBar)Opacity)=[0-9]+/\1=$pct/; s/^MenuOpacity=[0-9]+/MenuOpacity=$menu/" "$DARKLY" ;;
+    terminal|browser|editor|fileExplorer|audioSettings|cursorTheme) hv_set "$key" "\"$val\""
+      [[ "$key" == cursorTheme ]] && hyprctl setcursor "$val" "$(hv_get cursorSize)" >/dev/null
+      hv_reload ;;
+    cursorSize) hv_set "$key" "$val"; hyprctl setcursor "$(hv_get cursorTheme)" "$val" >/dev/null; hv_reload ;;
+    *) hv_set "$key" "$val"; hv_reload ;;
+  esac
+}
+
+case "${1:-}" in
+  get) cmd_get ;;
+  set) [[ $# -eq 3 ]] || die "usage: rice-settings set KEY VALUE"; cmd_set "$2" "$3" ;;
+  apply-gamma) apply_gamma ;;
+  *) echo "usage: rice-settings get | set KEY VALUE | apply-gamma" >&2; exit 1 ;;
+esac
