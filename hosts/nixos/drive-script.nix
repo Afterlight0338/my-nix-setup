@@ -1,8 +1,8 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, ... }:
 
+# `drive mount|umount|fix|status|remount` for the external SATA SSD (/mnt/useless), which
+# sometimes comes back with the NTFS dirty flag set and refuses to mount.
 let
-  cfg = config.custom.system.driveScript;
-
   driveScript = pkgs.writeShellScriptBin "drive" ''
     #!/usr/bin/env bash
     set -euo pipefail
@@ -82,15 +82,5 @@ let
   '';
 in
 {
-  options.custom.system.driveScript = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install the custom 'drive' mount helper script";
-    };
-  };
-
-  config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ driveScript ];
-  };
+  environment.systemPackages = [ driveScript ];
 }

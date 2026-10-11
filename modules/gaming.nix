@@ -1,9 +1,9 @@
-{ config, pkgs, lib, ... }:
+{ config, lib, pkgs, ... }:
 
+# Steam, GameMode and osu! (lazer with a Discord audio bridge, stable through wine-osu).
 let
   cfg = config.custom.gaming;
 
-  # Exact osu-lazer launcher with Discord voice bridge, Wayland/PipeWire latency tuning, and GPU offload
   osuLazerScript = pkgs.writeShellScriptBin "osu-lazer" ''
     #!/usr/bin/env bash
 
@@ -15,9 +15,9 @@ let
         sleep 3
         wid="$(${pkgs.xdotool}/bin/xdotool search --all --class 'osu!' 2>/dev/null | head -n1 || true)"
         [ -n "$wid" ] &&
-            ${pkgs.xorg.xprop}/bin/xprop -id "$wid" -f WM_NAME 8s -set WM_NAME 'osu!' 2>/dev/null || true
+            ${pkgs.xprop}/bin/xprop -id "$wid" -f WM_NAME 8s -set WM_NAME 'osu!' 2>/dev/null || true
 
-        # Auto-link osu! audio to Discord voice stream (zero latency overhead)
+        # Link osu! audio into Discord's voice input so calls hear the game
         for _ in {1..6}; do
             osu_fl="$(${pkgs.pipewire}/bin/pw-link -o 2>/dev/null | grep -iE '(osu|ALSA)' | grep -E '_FL$' | head -n1 || true)"
             osu_fr="$(${pkgs.pipewire}/bin/pw-link -o 2>/dev/null | grep -iE '(osu|ALSA)' | grep -E '_FR$' | head -n1 || true)"
@@ -47,7 +47,6 @@ let
     exec "''${COMMAND[@]}" "$@"
   '';
 
-  # osu-wine-nixos launcher using steam-run FHS environment (no system Wine package needed)
   osuWineNixosScript = pkgs.writeShellScriptBin "osu-wine-nixos" ''
     #!/usr/bin/env bash
     set -euo pipefail
@@ -121,36 +120,19 @@ let
 in
 {
   options.custom.gaming = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Enable gaming stack (Steam, GameMode, ProtonPlus, r2modman)";
-    };
-
+    enable = lib.mkEnableOption "Steam, GameMode and mod managers" // { default = true; };
     osu = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Enable osu! rhythm game suite";
-      };
-
-      lazer = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Install osu! Lazer (with Discord audio routing & Wayland low-latency optimization)";
-      };
-
-      wine = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Enable osu-wine-nixos runner via Steam FHS environment (no system Wine installed)";
-      };
+      enable = lib.mkEnableOption "osu!";
+      # Launcher that routes osu! audio into Discord calls and runs it on the dGPU
+      lazer = lib.mkEnableOption "osu!lazer" // { default = true; };
+      # osu! stable through wine-osu inside steam-run (set up with osu-winello first)
+      wine = lib.mkEnableOption "osu! stable via wine-osu";
     };
   };
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
-      # Steam — open firewall ports for Remote Play, Source servers, and LAN transfers.
+      # Firewall ports for Remote Play, game servers and LAN transfers
       programs.steam = {
         enable = true;
         remotePlay.openFirewall = true;
@@ -158,15 +140,11 @@ in
         localNetworkGameTransfers.openFirewall = true;
       };
 
-      # Feral GameMode daemon
       programs.gamemode.enable = true;
 
       environment.systemPackages = with pkgs; [
         protonplus
         r2modman
-        lavat
-        cavalier
-        tty-clock
       ];
     })
 
@@ -177,7 +155,7 @@ in
         osuLazerDesktopItem
         pipewire
         xdotool
-        xorg.xprop
+        xprop
       ];
     })
 
@@ -191,7 +169,7 @@ in
         libnotify
         xdg-desktop-portal-gtk
         xdotool
-        xorg.xprop
+        xprop
         osuWineNixosScript
         osuWineDesktopItem
       ];

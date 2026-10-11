@@ -4,7 +4,7 @@
   # External SATA SSD
   fileSystems."/mnt/useless" = {
     device = "/dev/disk/by-uuid/5E6AF7106AF6E3A5";
-    fsType = "ntfs3";
+    fsType = "ntfs-3g"; # the ntfs3 kernel driver had trouble with this drive
     options = [
       "rw"
       "uid=1000"

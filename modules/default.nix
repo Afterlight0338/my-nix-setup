@@ -1,12 +1,9 @@
-{ ... }:
-
 {
   imports = [
-    ./core
-    ./desktop
-    ./hardware
-    ./gaming
-    ./apps
-    ./system
+    ./core.nix
+    ./desktop.nix
+    ./hardware.nix
+    ./gaming.nix
+    ./apps.nix
   ];
 }

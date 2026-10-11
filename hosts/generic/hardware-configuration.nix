@@ -5,7 +5,7 @@
 { lib, ... }:
 
 {
-  # Minimal fallback mounts to ensure successful evaluation out of the box
+  # Placeholder mounts so the flake evaluates on machines without /etc/nixos
   fileSystems."/" = lib.mkDefault {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
