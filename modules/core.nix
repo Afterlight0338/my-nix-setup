@@ -120,10 +120,13 @@ in
         xdg-user-dirs xdg-utils
         polkit_gnome
         comma # , <command> runs anything from nixpkgs once
+        uv # Python projects; its own downloaded Pythons run via nix-ld
       ];
 
       # flake nixpkgs has no programs.sqlite, so the stock "command not found" hint is off; nix-index reads the same DB
       programs.nix-index.enable = true;
+      # Nix-built Pythons fail on pip wheels (libstdc++.so.6), so uv only uses its own
+      environment.variables.UV_PYTHON_PREFERENCE = "only-managed";
 
       # comma needs a nix-index database; fetch the prebuilt one weekly instead of indexing locally
       systemd.user.services.nix-index-database = {
