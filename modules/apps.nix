@@ -10,6 +10,7 @@ in
     flatpak.enable = lib.mkEnableOption "Flatpak" // { default = true; };
     obsVirtualCam.enable = lib.mkEnableOption "the OBS virtual camera" // { default = true; };
     hamachi.enable = lib.mkEnableOption "LogMeIn Hamachi and the Haguichi frontend";
+    devTools.enable = lib.mkEnableOption "dotnet, JDK, scrcpy, ani-cli, qemu";
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
@@ -39,6 +40,13 @@ in
         options v4l2loopback devices=1 video_nr=10 card_label="OBS Virtual Camera" exclusive_caps=1
       '';
       environment.systemPackages = [ pkgs.v4l-utils ];
+    })
+
+    (lib.mkIf cfg.devTools.enable {
+      environment.systemPackages = with pkgs; [
+        dotnet-sdk_8 jdk jdt-language-server
+        scrcpy ani-cli qemu
+      ];
     })
 
     (lib.mkIf cfg.hamachi.enable {

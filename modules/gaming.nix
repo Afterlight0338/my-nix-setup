@@ -148,7 +148,7 @@ in
       ];
     })
 
-    (lib.mkIf (cfg.enable && cfg.osu.enable && cfg.osu.lazer) {
+    (lib.mkIf (cfg.osu.enable && cfg.osu.lazer) {
       environment.systemPackages = with pkgs; [
         osu-lazer-bin
         osuLazerScript
@@ -159,7 +159,7 @@ in
       ];
     })
 
-    (lib.mkIf (cfg.enable && cfg.osu.enable && cfg.osu.wine) {
+    (lib.mkIf (cfg.osu.enable && cfg.osu.wine) {
       environment.systemPackages = with pkgs; [
         steam-run
         zenity

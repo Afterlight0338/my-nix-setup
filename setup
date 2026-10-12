@@ -32,7 +32,15 @@ input() {
   echo "${reply:-$2}"
 }
 
-step "Hardware"
+# PCI address from an `lspci -nn` line ("75:00.0 ...") as PCI:bus:device:function in decimal
+bus_id() {
+  local a=${1%% *} b d f
+  b=${a%%:*} d=${a#*:}
+  f=${d#*.} d=${d%%.*}
+  echo "PCI:$((16#$b)):$((16#$d)):$f"
+}
+
+step "Hardware (auto-detected)"
 vendor=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || echo unknown)
 product=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo unknown)
 laptop=false
@@ -41,56 +49,74 @@ ls /sys/class/power_supply/BAT* >/dev/null 2>&1 && laptop=true
 acer=false
 $laptop && [[ "$vendor $product" == *[Aa]cer* ]] && acer=true
 
-gpus=$(lspci 2>/dev/null | grep -iE 'vga|3d|display' || true)
+# Match on PCI vendor IDs: nvidia 10de, amd 1002, intel 8086
+gpus=$(lspci -nn 2>/dev/null | grep -E '\[03(00|02|80)\]' || true)
 nvidia=false amd=false intel=false
-grep -qi nvidia <<< "$gpus" && nvidia=true
-grep -qiE 'amd|ati|radeon' <<< "$gpus" && amd=true
-grep -qi intel <<< "$gpus" && intel=true
+prime_amd="" prime_nvidia=""
+while read -r line; do
+  case "$line" in
+    *"[10de:"*) nvidia=true prime_nvidia=$(bus_id "$line") ;;
+    *"[1002:"*) amd=true prime_amd=$(bus_id "$line") ;;
+    *"[8086:"*) intel=true ;;
+  esac
+done <<< "$gpus"
 bluetooth=false
 [[ -d /sys/class/bluetooth ]] && bluetooth=true
+# CachyOS's GRUB on the ESP: my boot bridge only makes sense next to it
+cachy_grub=false
+[[ -f /boot/EFI/cachyos/grubx64.efi ]] && cachy_grub=true
 
 info "$vendor $product ($($laptop && echo laptop || echo desktop))"
 info "$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ *//')"
 while read -r line; do [[ -n $line ]] && info "${line#*: }"; done <<< "$gpus"
 
-step "What to install"
-info "1  Everything: Hyprland + Roxy theme, Steam, osu!, apps, tablet driver, boot splash"
-info "2  Minimal: Hyprland + Roxy theme and the basics"
-info "3  Ask me about each part"
-profile=$(input "Choice" 1)
+step "Mode"
+info "1  lite        does nothing. Why are you even using this script?"
+info "2  minimal     only what's needed: Hyprland, Caelestia (Roxy theme) and osu!"
+info "3  full        the important parts of my system: gaming, apps, tablet, kernel, dev tools"
+info "4  afterlight  1:1 my host (drives, Kali VM network, boot bridge, ...), except passwords"
+mode=${1:-}
+if [[ -z $mode ]]; then
+  case "$(input "Choice" 3)" in
+    1) mode=lite ;; 2) mode=minimal ;; 3) mode=full ;; 4) mode=afterlight ;;
+    *) mode=full ;;
+  esac
+fi
 
-hyprland=true gaming=true osu=true apps=true otd=true otd_preset=true webhid=false
-splash=true autologin=false cachyos=false damx=$acer
-case "$profile" in
-  2)
-    gaming=false osu=false otd=false otd_preset=false splash=false damx=false
+if [[ $mode == lite ]]; then
+  info "Lite mode: nothing installed, nothing changed. Why are you even using this script?"
+  exit 0
+fi
+
+hyprland=true gaming=true osu=true osu_wine=true apps=true devtools=true filemgr=true
+otd=true otd_preset=true webhid=true splash=true autologin=false cachyos=true damx=$acer
+bridge=false
+case "$mode" in
+  minimal)
+    gaming=false osu_wine=false apps=false devtools=false filemgr=false
+    otd=false otd_preset=false webhid=false splash=false cachyos=false damx=false
     ;;
-  3)
-    if ! ask "Is the hardware above right?" y; then
-      nvidia=$(yn "NVIDIA GPU?" "$($nvidia && echo y || echo n)")
-      amd=$(yn "AMD GPU (including integrated)?" "$($amd && echo y || echo n)")
-      intel=$(yn "Intel GPU (including integrated)?" "$($intel && echo y || echo n)")
-      laptop=$(yn "Laptop?" "$($laptop && echo y || echo n)")
-    fi
-    hyprland=$(yn "Hyprland with the Roxy theme?" y)
-    gaming=$(yn "Steam and GameMode?" y)
-    osu=$(yn "osu! (lazer, and stable through wine-osu)?" y)
-    apps=$(yn "Desktop apps (Brave, Discord, mpv, ...)?" y)
-    otd=$(yn "Drawing tablet (OpenTabletDriver)?" n)
-    otd_preset=false
-    $otd && otd_preset=$(yn "Copy my tablet area and filters (67.67x39.39 mm, rotated 180)?" n)
-    webhid=$(yn "Access for custom keyboards/keypads (WebHID, RP2040, ...)?" n)
-    $acer && damx=$(yn "Acer fan and performance controls (DAMX)?" n)
-    cachyos=$(yn "CachyOS kernel (BORE scheduler, prebuilt)?" n)
-    splash=$(yn "Roxy boot splash?" y)
-    autologin=$(yn "Log in automatically (the session locks itself)?" n)
+  full) ;;
+  afterlight)
+    autologin=true bridge=$cachy_grub
     ;;
+  *) fail "Unknown mode '$mode' (lite, minimal, full, afterlight)"; exit 1 ;;
 esac
 
 step "User"
-user=$(input "Username" "${SUDO_USER:-${USER:-nixos}}")
+if [[ $mode == afterlight ]]; then
+  user=afterlight
+  info "The user is 'afterlight', like the original. Passwords aren't part of the config:"
+  info "set one after switching with: sudo passwd afterlight"
+else
+  user=$(input "Username" "${SUDO_USER:-${USER:-nixos}}")
+fi
 host=$(input "Hostname" "$(cat /etc/hostname 2>/dev/null || echo nixos)")
 dir="hosts/$host"
+if [[ $host == nixos && -f hosts/nixos/boot-bridge.nix ]]; then
+  fail "hosts/nixos is the original laptop's config, pick another hostname."
+  exit 1
+fi
 if [[ -e $dir/default.nix ]] && ! ask "$dir already exists. Overwrite it?" n; then
   info "Nothing changed."
   exit 0
@@ -104,30 +130,45 @@ else
   nixos-generate-config --show-hardware-config > "$dir/hardware-configuration.nix"
 fi
 
-cat > "$dir/default.nix" <<EOF
+imports="./hardware-configuration.nix"
+user_block=""
+if [[ $mode == afterlight ]]; then
+  imports="$imports ../nixos/personal.nix"
+  $bridge && imports="$imports ../nixos/boot-bridge.nix"
+else
+  user_block="    user.name = \"$user\";
+    user.description = \"${user^}\";
+"
+fi
+prime_block=""
+if $nvidia && $amd && [[ -n $prime_amd && -n $prime_nvidia ]]; then
+  prime_block="      nvidia.prime.amdBusId = \"$prime_amd\";
+      nvidia.prime.nvidiaBusId = \"$prime_nvidia\";
+"
+fi
+
+cat > "$dir/default.nix" <<NIX
 { lib, ... }:
 
-# Written by ./setup on $(date +%F). Options are described in modules/*.nix.
+# Written by ./setup ($mode mode) on $(date +%F). Options are described in modules/*.nix.
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [ $imports ];
 
   networking.hostName = "$host";
 
   custom = {
-    user.name = "$user";
-    user.description = "${user^}";
-
+$user_block
     desktop = {
       hyprland.enable = $hyprland;
       theme.enable = $hyprland;
-      fileManager.enable = $hyprland;
+      fileManager.enable = $filemgr;
       splash.enable = $splash;
       autologin.enable = $autologin;
     };
 
     hardware = {
       nvidia.enable = $nvidia;
-      amdGpu.enable = $amd;
+$prime_block      amdGpu.enable = $amd;
       intelGpu.enable = $intel;
       bluetooth.enable = $bluetooth;
       laptop = {
@@ -143,10 +184,11 @@ cat > "$dir/default.nix" <<EOF
     gaming.enable = $gaming;
     gaming.osu = {
       enable = $osu;
-      wine = $osu;
+      wine = $osu_wine;
     };
 
     apps.enable = $apps;
+    apps.devTools.enable = $devtools;
   };
 
   boot.loader.systemd-boot.enable = lib.mkDefault true;
@@ -154,7 +196,7 @@ cat > "$dir/default.nix" <<EOF
 
   system.stateVersion = "26.05";
 }
-EOF
+NIX
 # Flakes only see files git knows about
 [[ -d .git ]] && git add -N "$dir"
 ok "Done"
@@ -167,27 +209,40 @@ else
   exit 1
 fi
 
-step "Dotfiles"
-if ask "Install the Hyprland / Roxy dotfiles into your home folder?" y; then
-  home=$(getent passwd "$user" | cut -d: -f6)
-  home=${home:-$HOME}
-  stamp=$(date +%Y%m%d%H%M%S)
+stamp=$(date +%Y%m%d%H%M%S)
+# install_dotfiles <home> <owner> [sudo]
+install_dotfiles() {
+  local home=$1 owner=$2 sx=${3:-} name f src
   # dotfiles/<app> replaces ~/.config/<app> (the old folder is kept as <app>.backup-<time>)
   for src in dotfiles/*/; do
     name=$(basename "$src")
     [[ $name == OpenTabletDriver ]] && ! $otd_preset && continue
-    [[ -d $home/.config/$name ]] && mv "$home/.config/$name" "$home/.config/$name.backup-$stamp"
-    mkdir -p "$home/.config"
-    cp -ra "$src" "$home/.config/$name"
+    [[ -d $home/.config/$name ]] && $sx mv "$home/.config/$name" "$home/.config/$name.backup-$stamp"
+    $sx mkdir -p "$home/.config"
+    $sx cp -ra "$src" "$home/.config/$name"
   done
   # home/ mirrors files elsewhere in your home folder (scripts, ~/.zshrc, ...)
-  (cd home && find . -type f) | while read -r f; do
+  while read -r f; do
     f=${f#./}
-    mkdir -p "$(dirname "$home/$f")"
-    [[ -e $home/$f ]] && ! cmp -s "home/$f" "$home/$f" && cp -a "$home/$f" "$home/$f.backup-$stamp"
-    cp -a "home/$f" "$home/$f"
-  done
-  [[ -n ${SUDO_USER:-} ]] && chown -R "$user:users" "$home/.config" "$home/.local" "$home/.zshrc" 2>/dev/null
+    $sx mkdir -p "$(dirname "$home/$f")"
+    [[ -e $home/$f ]] && ! cmp -s "home/$f" "$home/$f" && $sx cp -a "$home/$f" "$home/$f.backup-$stamp"
+    $sx cp -a "home/$f" "$home/$f"
+  done < <(cd home && find . -type f)
+  [[ -n $sx ]] && $sx chown -R "$owner:users" "$home"
+  return 0
+}
+
+step "Dotfiles"
+dotfiles_later=false
+if ! $hyprland; then
+  info "Hyprland is off, nothing to copy."
+elif [[ $mode == afterlight && $USER != afterlight ]]; then
+  # The afterlight user only exists after the switch, so its dotfiles go in then
+  dotfiles_later=true
+  info "They'll be copied into /home/afterlight after the switch."
+elif ask "Install the Hyprland / Roxy dotfiles into your home folder?" y; then
+  home=$(getent passwd "$user" | cut -d: -f6)
+  install_dotfiles "${home:-$HOME}" "$user" "$([[ -n ${SUDO_USER:-} ]] && echo sudo)"
   ok "Installed (anything replaced was kept as *.backup-$stamp)"
 fi
 
@@ -196,10 +251,16 @@ if ask "Build and switch to $host now?" y; then
   [[ -d /etc/nixos && ! -d /etc/nixos.wizard-backup ]] && sudo cp -ra /etc/nixos /etc/nixos.wizard-backup
   if sudo nixos-rebuild switch --flake ".#$host"; then
     ok "Switched. If anything's wrong: sudo nixos-rebuild switch --rollback"
+    if $dotfiles_later && ask "Copy the dotfiles into /home/afterlight now?" y; then
+      install_dotfiles /home/afterlight afterlight sudo
+      ok "Installed"
+    fi
+    [[ $mode == afterlight ]] && info "Set the password: sudo passwd afterlight"
   else
     fail "The build failed, so your current system is still the active one."
     exit 1
   fi
 else
   info "Later: sudo nixos-rebuild switch --flake .#$host"
+  $dotfiles_later && info "and copy dotfiles/ and home/ into /home/afterlight yourself."
 fi

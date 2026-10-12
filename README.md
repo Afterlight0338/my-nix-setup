@@ -18,7 +18,7 @@ It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't ti
 On a working NixOS install, one line:
 
 ```bash
-curl -fsSL vivlos.dev/nix/install | bash
+curl -fsSL vivlos.dev/nix/install | bash            # or: ... | bash -s -- minimal
 ```
 
 Or by hand (`vivlos.dev/nix` also redirects to the repo):
@@ -29,7 +29,16 @@ cd ~/my-nix-setup
 ./setup
 ```
 
-It looks at your hardware, asks what you want (everything, minimal, or one question per part), writes `hosts/<your hostname>/`, checks that it builds, offers to copy the dotfiles into your home folder, and finally offers to switch. Nothing changes until those last two questions, and anything it replaces is kept as `*.backup-<time>`.
+It detects your hardware (CPU, GPUs and PRIME bus IDs, laptop, Acer, Bluetooth) and asks for a mode:
+
+| Mode | What you get |
+| :--- | :--- |
+| `lite` | Nothing. Why are you even using this script? |
+| `minimal` | Only what is needed: Hyprland, Caelestia with the Roxy theme, osu! |
+| `full` | The important parts of my system: gaming, apps, tablet driver, CachyOS kernel, dev tools |
+| `afterlight` | 1:1 my host: also my drives, Kali VM network, autologin, and the GRUB bridge when CachyOS is on the ESP. User is `afterlight`; passwords are never part of it (`sudo passwd afterlight`) |
+
+Pass the mode to skip the menu (`./setup minimal`). It writes `hosts/<your hostname>/`, checks that it builds, offers to copy the dotfiles, and finally offers to switch. Nothing changes until those last two questions, and anything it replaces is kept as `*.backup-<time>`.
 
 If something goes wrong after switching, `sudo nixos-rebuild switch --rollback` puts the previous system back, and older ones are in the boot menu.
 
@@ -63,7 +72,7 @@ In a terminal, `fastfetch-en` / `fastfetch-jp` switch the fastfetch box between 
 flake.nix        inputs, and one nixosConfiguration per folder in hosts/
 setup            the install wizard
 modules/         core, desktop, hardware, gaming, apps (all options are custom.*)
-hosts/nixos/     my laptop: drives, GRUB bridge, Kali VM network, personal packages
+hosts/nixos/     my laptop: default.nix (Acer hardware), personal.nix (the rest of my setup: drives, Kali VM network, ...)
 hosts/generic/   fallback that uses /etc/nixos/hardware-configuration.nix
 pkgs/            DAMX and the linuwu-sense driver (Acer)
 dotfiles/        copied to ~/.config/<name>
