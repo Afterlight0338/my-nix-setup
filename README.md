@@ -15,7 +15,7 @@ It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't ti
 
 ## Installing
 
-On a working NixOS install:
+On a working NixOS install (short link to the repo: <https://vivlos.dev/nix>):
 
 ```bash
 git clone https://github.com/Afterlight0338/my-nix-setup ~/my-nix-setup
@@ -68,6 +68,7 @@ home/            copied to ~/ (Settings backend and scripts, .zshrc, lock screen
 
 - The CachyOS kernel and the Caelestia shell use their own pinned nixpkgs instead of following this one. That's what their binary caches were built with, so nothing gets compiled.
 - My laptop boots through CachyOS's GRUB; `hosts/nixos/boot-bridge.nix` keeps its menu in sync with NixOS generations. A normal install doesn't need any of that.
+- Monitors are auto-detected (preferred mode, placed automatically). Use `nwg-displays` or edit `~/.config/hypr` for a fixed layout.
 - Hybrid AMD + NVIDIA laptops: set `custom.hardware.nvidia.prime.amdBusId` and `nvidiaBusId` (from `lspci`, written as `PCI:bus:device:function` in decimal) to let the NVIDIA GPU sleep and get `nvidia-offload <command>`.
 
-By Afterlight ([@Afterlight0338](https://github.com/Afterlight0338)).
+MIT licensed. By Afterlight ([@Afterlight0338](https://github.com/Afterlight0338)).

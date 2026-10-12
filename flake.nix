@@ -1,5 +1,5 @@
 {
-  description = "Afterlight's NixOS setup and Roxy Hyprland rice";
+  description = "NixOS setup and Roxy Hyprland rice";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

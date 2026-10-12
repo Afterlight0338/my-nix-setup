@@ -425,7 +425,7 @@ box_width=$((inner_width + 2))
   line_str="${FRAME}╭$(repeat_char '─' "$title_left")${TITLE}${title_text}${FRAME}$(repeat_char '─' "$title_right")╮${RESET}"
   printf '    { "type": "custom", "format": "%s" },\n' "$(escape_json "$line_str")"
 
-  identity=" ${USER:-afterlight}@$(hostname -s) "
+  identity=" ${USER:-$(id -un)}@$(hostname -s) "
   identity_width=$(visual_width "$identity")
   identity_left=$(((inner_width - identity_width) / 2))
   identity_right=$((inner_width - identity_width - identity_left))
