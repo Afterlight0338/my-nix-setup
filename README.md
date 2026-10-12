@@ -15,7 +15,13 @@ It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't ti
 
 ## Installing
 
-On a working NixOS install (short link to the repo: <https://vivlos.dev/nix>):
+On a working NixOS install, one line:
+
+```bash
+curl -fsSL vivlos.dev/nix/install | bash
+```
+
+Or by hand (`vivlos.dev/nix` also redirects to the repo):
 
 ```bash
 git clone https://github.com/Afterlight0338/my-nix-setup ~/my-nix-setup
