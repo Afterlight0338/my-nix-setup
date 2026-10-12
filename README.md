@@ -1,8 +1,14 @@
 # my-nix-setup
 
+```bash
+curl -fsSL vivlos.dev/nix/install | bash
+```
+
 My NixOS config, and the Hyprland rice that goes with it: Caelestia shell, themed after Roxy Migurdia from *Mushoku Tensei*. Dark charcoal, Roxy blue, a little gold.
 
 It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't tied to it, and `./setup` will write a config for your own machine.
+
+> **Disclaimer.** This is a personal config, shared as is, with no warranty. I'm not responsible if it breaks, ruins, or changes your system, your boot, your files or your dotfiles in ways you didn't want. Read what you're about to run (the script is short), back up anything you care about, and use it at your own risk. NixOS keeps previous generations, so `sudo nixos-rebuild switch --rollback` is your way out.
 
 ## What you get
 
@@ -15,30 +21,30 @@ It runs my laptop (an Acer Nitro V 15, `hosts/nixos`), but the modules aren't ti
 
 ## Installing
 
-On a working NixOS install, one line:
-
-```bash
-curl -fsSL vivlos.dev/nix/install | bash            # or: ... | bash -s -- minimal
-```
+On a working NixOS install, the one-liner at the top downloads this repo to `~/my-nix-setup` and starts the setup wizard. To pick the mode up front: `curl -fsSL vivlos.dev/nix/install | bash -s -- minimal`.
 
 Or by hand (`vivlos.dev/nix` also redirects to the repo):
 
 ```bash
 git clone https://github.com/Afterlight0338/my-nix-setup ~/my-nix-setup
 cd ~/my-nix-setup
-./setup
+./setup            # or ./setup minimal
 ```
 
-It detects your hardware (CPU, GPUs and PRIME bus IDs, laptop, Acer, Bluetooth) and asks for a mode:
+### The modes
 
-| Mode | What you get |
-| :--- | :--- |
-| `lite` | Nothing. Why are you even using this script? |
-| `minimal` | Only what is needed: Hyprland, Caelestia with the Roxy theme, osu! |
-| `full` | The important parts of my system: gaming, apps, tablet driver, CachyOS kernel, dev tools |
-| `afterlight` | 1:1 my host: also my drives, Kali VM network, autologin, and the GRUB bridge when CachyOS is on the ESP. User is `afterlight`; passwords are never part of it (`sudo passwd afterlight`) |
+The wizard detects your hardware (CPU, GPUs and the PRIME bus IDs of hybrid laptops, laptop or desktop, Acer, Bluetooth) and then asks for a mode. Each one only changes the config it writes for your machine; nothing is applied until you say so.
 
-Pass the mode to skip the menu (`./setup minimal`). It writes `hosts/<your hostname>/`, checks that it builds, offers to copy the dotfiles, and finally offers to switch. Nothing changes until those last two questions, and anything it replaces is kept as `*.backup-<time>`.
+- **`lite`**: does nothing and exits. Nothing is written, nothing is installed. Why are you even using this script?
+- **`minimal`**: only what's needed for the desktop: Hyprland through UWSM, the Caelestia shell with the Roxy theme and dotfiles, and osu! (lazer). No Steam, no extra apps, no file manager, no boot splash, no tablet driver, no custom kernel.
+- **`full`**: the important parts of my system, nearly 1:1. Minimal plus Steam and GameMode, osu! stable through wine-osu, the desktop apps (Brave, Discord, mpv, ...), Flatpak, file managers, OpenTabletDriver with my area and filters, WebHID access for custom keyboards, the CachyOS kernel, the boot splash, and dev tools (dotnet, JDK, scrcpy, ani-cli, qemu). Acer fan control is added automatically on Acer laptops. Autologin stays off.
+- **`afterlight`**: my actual host, 1:1, except passwords. Everything in `full`, plus what's in `hosts/nixos/personal.nix`: my external drives (mounted with `nofail`), the Kali VM bridge and NAT, autologin, Hamachi, my firewall ports and USB quirks, and the GRUB bridge if CachyOS's GRUB is found on your ESP. The user is `afterlight`, so set its password after switching with `sudo passwd afterlight`. Only pick this one if you really want my machine, not just my rice.
+
+Hardware always comes from detection, never from my laptop: your own `hardware-configuration.nix`, your GPUs, your bus IDs.
+
+### What the wizard does
+
+It writes `hosts/<your hostname>/`, checks that the result builds, offers to copy the dotfiles into your home folder, and finally offers to switch. Nothing changes on your system until those last two questions, and anything it replaces is kept as `*.backup-<time>`. If your hostname is `nixos`, the config is written to `hosts/this-machine` because `hosts/nixos` is my laptop.
 
 If something goes wrong after switching, `sudo nixos-rebuild switch --rollback` puts the previous system back, and older ones are in the boot menu.
 

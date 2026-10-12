@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Sets this flake up on a machine: detects the hardware, writes hosts/<hostname>/,
+# Sets this flake up on a machine: detects the hardware, asks for a mode (lite, minimal,
+# full, afterlight), writes hosts/<hostname>/,
 # checks that it evaluates, installs the dotfiles, and optionally switches to it.
 # Nothing on the system changes until the last two questions.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
+# Flakes and the wizard need git; a fresh NixOS install often has none
+command -v git >/dev/null || exec nix-shell -p git --run "$(printf "%q " "$0" "$@")"
 
 bold=$'\e[1m' dim=$'\e[2m' blue=$'\e[34m' green=$'\e[32m' red=$'\e[31m' reset=$'\e[0m'
 step() { printf '\n%s==>%s %s%s%s\n' "$blue$bold" "$reset" "$bold" "$1" "$reset"; }
@@ -112,11 +115,9 @@ else
   user=$(input "Username" "${SUDO_USER:-${USER:-nixos}}")
 fi
 host=$(input "Hostname" "$(cat /etc/hostname 2>/dev/null || echo nixos)")
-dir="hosts/$host"
-if [[ $host == nixos && -f hosts/nixos/boot-bridge.nix ]]; then
-  fail "hosts/nixos is the original laptop's config, pick another hostname."
-  exit 1
-fi
+cfg=$host
+[[ $cfg == nixos ]] && cfg=this-machine
+dir="hosts/$cfg"
 if [[ -e $dir/default.nix ]] && ! ask "$dir already exists. Overwrite it?" n; then
   info "Nothing changed."
   exit 0
@@ -202,7 +203,7 @@ NIX
 ok "Done"
 
 step "Checking it evaluates"
-if nix --extra-experimental-features "nix-command flakes" eval --raw ".#nixosConfigurations.$host.config.system.build.toplevel.drvPath" >/dev/null; then
+if nix --extra-experimental-features "nix-command flakes" eval --raw ".#nixosConfigurations.$cfg.config.system.build.toplevel.drvPath" >/dev/null; then
   ok "Looks good"
 else
   fail "It doesn't evaluate (error above). Your system hasn't been touched."
@@ -236,7 +237,7 @@ step "Dotfiles"
 dotfiles_later=false
 if ! $hyprland; then
   info "Hyprland is off, nothing to copy."
-elif [[ $mode == afterlight && $USER != afterlight ]]; then
+elif [[ $mode == afterlight && ${USER:-} != afterlight ]]; then
   # The afterlight user only exists after the switch, so its dotfiles go in then
   dotfiles_later=true
   info "They'll be copied into /home/afterlight after the switch."
@@ -247,9 +248,9 @@ elif ask "Install the Hyprland / Roxy dotfiles into your home folder?" y; then
 fi
 
 step "Switch"
-if ask "Build and switch to $host now?" y; then
+if ask "Build and switch to $cfg now?" y; then
   [[ -d /etc/nixos && ! -d /etc/nixos.wizard-backup ]] && sudo cp -ra /etc/nixos /etc/nixos.wizard-backup
-  if sudo nixos-rebuild switch --flake ".#$host"; then
+  if sudo nixos-rebuild switch --flake ".#$cfg"; then
     ok "Switched. If anything's wrong: sudo nixos-rebuild switch --rollback"
     if $dotfiles_later && ask "Copy the dotfiles into /home/afterlight now?" y; then
       install_dotfiles /home/afterlight afterlight sudo
@@ -261,6 +262,6 @@ if ask "Build and switch to $host now?" y; then
     exit 1
   fi
 else
-  info "Later: sudo nixos-rebuild switch --flake .#$host"
+  info "Later: sudo nixos-rebuild switch --flake .#$cfg"
   $dotfiles_later && info "and copy dotfiles/ and home/ into /home/afterlight yourself."
 fi
